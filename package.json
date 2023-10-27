@@ -21,10 +21,7 @@
     "web",
     "development",
     "web-based",
-    "games",
     "path",
-    "tracing",
-    "ray",
     "tracing",
     "voxel",
     "rendering",
@@ -39,19 +36,12 @@
     "webGL",
     "open",
     "source",
-    "game",
     "development",
-    "game",
     "framework",
-    "game",
     "creation",
-    "game",
     "design",
-    "game",
     "programming",
-    "game",
     "library",
-    "game",
     "development",
     "toolkit"
   ],
@@ -60,5 +50,9 @@
   "bugs": {
     "url": "https://github.com/JijaProGamer/Browzium-Engine/issues"
   },
-  "homepage": "https://github.com/JijaProGamer/Browzium-Engine#readme"
+  "homepage": "https://github.com/JijaProGamer/Browzium-Engine#readme",
+  "devDependencies": {
+    "terser-webpack-plugin": "^5.3.9",
+    "webpack-cli": "^5.1.4"
+  }
 }

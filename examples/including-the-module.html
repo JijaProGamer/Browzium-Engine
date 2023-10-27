@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>Including Browzium Engine example</title>
+    </head>
+
+    <body>
+        
+    </body>
+
+    <script type="module">
+        import Engine from "../dist/bundle.js"
+        /*
+            For real use, remove ../dist/bundle.js and instead use
+
+            https://cdn.jsdelivr.net/gh/JijaProGamer/Browzium-Engine/dist/bundle.js
+        */
+
+        let GameEngine = new Engine({
+
+        })
+
+        await GameEngine.AwaitPageActivation()
+        await GameEngine.InitActivation()
+
+        const sampleRate = GameEngine.AudioManager.audioContext.sampleRate;
+        const duration = 3; // Duration of the rocket launch
+        const startFrequency = 500; // Initial frequency
+        const endFrequency = 2000; // Final frequency
+        const numSamples = Math.floor(sampleRate * duration);
+        const audioBuffer = GameEngine.AudioManager.CreateAudioBuffer(numSamples, 2);
+        const channelData = audioBuffer.getChannelData(0);
+
+        for (let i = 0; i < numSamples; i++) {
+            const t = i / sampleRate;
+
+            const currentFrequency = startFrequency + (endFrequency - startFrequency) * (i / numSamples);
+            const amplitude = 0.3 * Math.exp(-2 * (i / numSamples - 0.75) ** 2);
+
+            channelData[i] = amplitude * Math.sin(2 * Math.PI * currentFrequency * t);
+        }
+
+        await GameEngine.AudioManager.PlaySound(audioBuffer, [0, 0, 1], [0, 0, -1])
+    </script>
+</html>
