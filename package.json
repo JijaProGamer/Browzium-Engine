@@ -1,0 +1,64 @@
+{
+  "name": "browzium-engine",
+  "version": "1.0.0",
+  "description": "Cutting-edge JavaScript game engine with path tracing, voxel rendering, ray-traced sound, and high performance for next-level web-based gaming experiences",
+  "main": "src/main.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JijaProGamer/Browzium-Engine.git"
+  },
+  "keywords": [
+    "game",
+    "engine",
+    "javascript",
+    "web",
+    "development",
+    "web-based",
+    "games",
+    "path",
+    "tracing",
+    "ray",
+    "tracing",
+    "voxel",
+    "rendering",
+    "real-time",
+    "graphics",
+    "immersive",
+    "sound",
+    "high",
+    "performance",
+    "3D",
+    "graphics",
+    "webGL",
+    "open",
+    "source",
+    "game",
+    "development",
+    "game",
+    "framework",
+    "game",
+    "creation",
+    "game",
+    "design",
+    "game",
+    "programming",
+    "game",
+    "library",
+    "game",
+    "development",
+    "toolkit"
+  ],
+  "author": "Bloxxy213",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/JijaProGamer/Browzium-Engine/issues"
+  },
+  "homepage": "https://github.com/JijaProGamer/Browzium-Engine#readme"
+}
