@@ -8,8 +8,17 @@
     </head>
 
     <body>
-        
+        <canvas></canvas>
+        <p id="frame_time">average frame time: %s</p>
+        <p id="frames_per_second">frames per second: %s</p>
     </body>
+
+    <style>
+        canvas {
+            width: 80vw;
+            height: 80vh;
+        }
+    </style>
 
     <script type="module">
         import Engine from "../dist/bundle.js"
@@ -19,19 +28,56 @@
             https://cdn.jsdelivr.net/gh/JijaProGamer/Browzium-Engine/dist/bundle.js
         */
 
-        let GameEngine = new Engine({
+        const vertexShaderSource = await (await fetch("../src/core/shaders/vertex.wgsl")).text();
+        const fragmentShaderSource = await (await fetch("../src/core/shaders/fragment.wgsl")).text();
 
+        const frame_time_ui = document.querySelector(`#frame_time`)
+        const frames_per_second_ui = document.querySelector(`#frames_per_second`)
+
+        let GameEngine = new Engine({
+            renderer: {
+                canvas: document.getElementsByTagName("canvas")[0],
+                shaders: {
+                    vertex: vertexShaderSource,
+                    fragment: fragmentShaderSource
+                }
+            }
         })
 
         await GameEngine.AwaitPageActivation()
         await GameEngine.InitActivation()
 
+        let frames = 0;
+        let frameTime = 0;
+
+        async function render(){
+            let delta = await GameEngine.RenderFrame()
+            requestAnimationFrame(render)
+
+            frames++;
+            frameTime += delta;
+
+            if(frameTime > 1000){
+                frames_per_second_ui.innerHTML = `frames per second: ${(1000 / (frameTime / frames)).toFixed(2)}`;
+                frame_time_ui.innerHTML = `average frame time: ${(frameTime / frames).toFixed(2)}`;
+
+                frames = 0;
+                frameTime = 0;
+            }
+        }
+
+        requestAnimationFrame(render)
+
+        setInterval(() => {
+            GameEngine.StepFrame()
+        }, 1000/50)
+
         const sampleRate = GameEngine.AudioManager.audioContext.sampleRate;
-        const duration = 3; // Duration of the rocket launch
+        const duration = 1; // Duration of the rocket launch
         const startFrequency = 500; // Initial frequency
         const endFrequency = 2000; // Final frequency
         const numSamples = Math.floor(sampleRate * duration);
-        const audioBuffer = GameEngine.AudioManager.CreateAudioBuffer(numSamples, 2);
+        const audioBuffer = GameEngine.AudioManager.CreateAudioBuffer(numSamples, 1);
         const channelData = audioBuffer.getChannelData(0);
 
         for (let i = 0; i < numSamples; i++) {
@@ -43,6 +89,6 @@
             channelData[i] = amplitude * Math.sin(2 * Math.PI * currentFrequency * t);
         }
 
-        await GameEngine.AudioManager.PlaySound(audioBuffer, [0, 0, 1], [0, 0, -1])
+        await GameEngine.AudioManager.PlaySound(audioBuffer, [0, 0, -1], [0, 1, 1])
     </script>
 </html>

@@ -7,7 +7,6 @@ class AudioManager {
 
     async Init() {
         this.audioContext = new (AudioContext || webkitAudioContext)()
-        console.log(this.audioContext.destination)
     }
 
     CreateAudioBuffer(numSamples, numChannels = 1){
@@ -22,15 +21,29 @@ class AudioManager {
 
     }
 
-    PlaySound(audioBuffer, pannerPosition=[0, 0, 0], pannerLookDirection=[0, 0, 0]) {
+    PlaySound(audioBuffer, opts={}) {
+        opts = {
+            position: [0, 0, 0], 
+            lookDirection: [0, 0, 0],
+
+            innerCone: 60,
+            outerCone: 90,
+        }
+
         const panner = this.audioContext.createPanner();
         const source = this.audioContext.createBufferSource();
         source.buffer = audioBuffer;
 
-        panner.setPosition(pannerPosition[0], pannerPosition[1], pannerPosition[2]);
-        panner.setOrientation(pannerLookDirection[0], pannerLookDirection[1], pannerLookDirection[2]);
+        panner.setPosition(opts.position[0], opts.position[1], opts.position[2]);
+        panner.setOrientation(opts.lookDirection[0], opts.lookDirection[1], opts.lookDirection[2]);
 
-        source.connect(this.audioContext.destination);
+        panner.coneInnerAngle = opts.innerCone;
+        panner.coneOuterAngle = opts.outerCone;
+
+        panner.distanceMode = "linear"
+        panner.panningModel = "HRTF"
+
+        source.connect(panner);
         panner.connect(this.audioContext.destination);
 
         source.start();
@@ -41,6 +54,8 @@ class AudioManager {
             panner.disconnect();
             source.onended = null;
         };
+
+        return { panner, source }
     }
 }
 
