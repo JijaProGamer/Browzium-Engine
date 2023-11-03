@@ -30,6 +30,7 @@
 
         const vertexShaderSource = await (await fetch("../src/core/shaders/vertex.wgsl")).text();
         const fragmentShaderSource = await (await fetch("../src/core/shaders/fragment.wgsl")).text();
+        const computeShaderSource = await (await fetch("../src/core/shaders/compute.wgsl")).text();
 
         const frame_time_ui = document.querySelector(`#frame_time`)
         const frames_per_second_ui = document.querySelector(`#frames_per_second`)
@@ -39,7 +40,8 @@
                 canvas: document.getElementsByTagName("canvas")[0],
                 shaders: {
                     vertex: vertexShaderSource,
-                    fragment: fragmentShaderSource
+                    fragment: fragmentShaderSource,
+                    compute: computeShaderSource
                 }
             }
         })
@@ -51,8 +53,12 @@
         let frameTime = 0;
 
         async function render(){
+            if(frames > 1){
+               return
+            }
+
+            console.log("Rendering")
             let delta = await GameEngine.RenderFrame()
-            requestAnimationFrame(render)
 
             frames++;
             frameTime += delta;
@@ -64,6 +70,8 @@
                 frames = 0;
                 frameTime = 0;
             }
+
+            requestAnimationFrame(render)
         }
 
         requestAnimationFrame(render)
