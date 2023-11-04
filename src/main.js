@@ -20,6 +20,7 @@ class Engine {
                 shaders: {
 
                 },
+                fov: 90,
             },
             ...opts,
         }

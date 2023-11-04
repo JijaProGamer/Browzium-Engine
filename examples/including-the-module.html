@@ -1,102 +1,110 @@
 <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html lang="en">
 
-        <title>Including Browzium Engine example</title>
-    </head>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <body>
-        <canvas></canvas>
-        <p id="frame_time">average frame time: %s</p>
-        <p id="frames_per_second">frames per second: %s</p>
-    </body>
+    <title>Including Browzium Engine example</title>
+</head>
 
-    <style>
-        canvas {
-            width: 80vw;
-            height: 80vh;
+<body>
+    <canvas></canvas>
+    <input type="range" id="slider" min="30" max="120" value="90" step="1">
+    <div id="fovDisplay">FOV: 90</div>
+
+    <p id="frame_time">average frame time: %s</p>
+    <p id="frames_per_second">frames per second: %s</p>
+</body>
+
+<style>
+    canvas {
+        width: 80vw;
+        height: 80vh;
+        display: block;
+    }
+</style>
+
+<script type="module">
+    import Engine from "../dist/bundle.js"
+    /*
+        For real use, remove ../dist/bundle.js and instead use
+
+        https://cdn.jsdelivr.net/gh/JijaProGamer/Browzium-Engine/dist/bundle.js
+    */
+
+    const computeShaderSource = await (await fetch("../src/core/shaders/compute.wgsl")).text();
+
+    const frame_time_ui = document.querySelector(`#frame_time`)
+    const frames_per_second_ui = document.querySelector(`#frames_per_second`)
+
+    const fov_slider = document.getElementById("slider");
+    const fov_display = document.getElementById("fovDisplay");
+
+    let GameEngine = new Engine({
+        renderer: {
+            canvas: document.getElementsByTagName("canvas")[0],
+            fov: 90,
+            shaders: {
+                compute: computeShaderSource
+            },
         }
-    </style>
+    })
 
-    <script type="module">
-        import Engine from "../dist/bundle.js"
-        /*
-            For real use, remove ../dist/bundle.js and instead use
+    await GameEngine.AwaitPageActivation()
+    await GameEngine.InitActivation()
 
-            https://cdn.jsdelivr.net/gh/JijaProGamer/Browzium-Engine/dist/bundle.js
-        */
+    let frames = 0;
+    let frameTime = 0;
 
-        const vertexShaderSource = await (await fetch("../src/core/shaders/vertex.wgsl")).text();
-        const fragmentShaderSource = await (await fetch("../src/core/shaders/fragment.wgsl")).text();
-        const computeShaderSource = await (await fetch("../src/core/shaders/compute.wgsl")).text();
+    fov_slider.addEventListener("input", () => { fov_display.textContent = `FOV: ${slider.value}`; GameEngine.RenderingManager.SetFOV(slider.value) });
 
-        const frame_time_ui = document.querySelector(`#frame_time`)
-        const frames_per_second_ui = document.querySelector(`#frames_per_second`)
+    async function render() {
+        if (frames > 1) {
+            //return
+        }
 
-        let GameEngine = new Engine({
-            renderer: {
-                canvas: document.getElementsByTagName("canvas")[0],
-                shaders: {
-                    vertex: vertexShaderSource,
-                    fragment: fragmentShaderSource,
-                    compute: computeShaderSource
-                }
-            }
-        })
+        //console.log("Rendering")
+        let delta = await GameEngine.RenderFrame()
 
-        await GameEngine.AwaitPageActivation()
-        await GameEngine.InitActivation()
+        frames++;
+        frameTime += delta;
 
-        let frames = 0;
-        let frameTime = 0;
+        if (frameTime > 1000) {
+            frames_per_second_ui.innerHTML = `frames per second: ${(1000 / (frameTime / frames)).toFixed(2)}`;
+            frame_time_ui.innerHTML = `average frame time: ${(frameTime / frames).toFixed(2)}`;
 
-        async function render(){
-            if(frames > 1){
-               return
-            }
-
-            console.log("Rendering")
-            let delta = await GameEngine.RenderFrame()
-
-            frames++;
-            frameTime += delta;
-
-            if(frameTime > 1000){
-                frames_per_second_ui.innerHTML = `frames per second: ${(1000 / (frameTime / frames)).toFixed(2)}`;
-                frame_time_ui.innerHTML = `average frame time: ${(frameTime / frames).toFixed(2)}`;
-
-                frames = 0;
-                frameTime = 0;
-            }
-
-            requestAnimationFrame(render)
+            frames = 0;
+            frameTime = 0;
         }
 
         requestAnimationFrame(render)
+    }
 
-        setInterval(() => {
-            GameEngine.StepFrame()
-        }, 1000/50)
+    requestAnimationFrame(render)
 
-        const sampleRate = GameEngine.AudioManager.audioContext.sampleRate;
-        const duration = 1; // Duration of the rocket launch
-        const startFrequency = 500; // Initial frequency
-        const endFrequency = 2000; // Final frequency
-        const numSamples = Math.floor(sampleRate * duration);
-        const audioBuffer = GameEngine.AudioManager.CreateAudioBuffer(numSamples, 1);
-        const channelData = audioBuffer.getChannelData(0);
+    setInterval(() => {
+        GameEngine.StepFrame()
+    }, 1000 / 50)
 
-        for (let i = 0; i < numSamples; i++) {
-            const t = i / sampleRate;
+    const sampleRate = GameEngine.AudioManager.audioContext.sampleRate;
+    const duration = 1; // Duration of the rocket launch
+    const startFrequency = 500; // Initial frequency
+    const endFrequency = 2000; // Final frequency
+    const numSamples = Math.floor(sampleRate * duration);
+    const audioBuffer = GameEngine.AudioManager.CreateAudioBuffer(numSamples, 1);
+    const channelData = audioBuffer.getChannelData(0);
 
-            const currentFrequency = startFrequency + (endFrequency - startFrequency) * (i / numSamples);
-            const amplitude = 0.3 * Math.exp(-2 * (i / numSamples - 0.75) ** 2);
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
 
-            channelData[i] = amplitude * Math.sin(2 * Math.PI * currentFrequency * t);
-        }
+        const currentFrequency = startFrequency + (endFrequency - startFrequency) * (i / numSamples);
+        const amplitude = 0.3 * Math.exp(-2 * (i / numSamples - 0.75) ** 2);
 
-        await GameEngine.AudioManager.PlaySound(audioBuffer, [0, 0, -1], [0, 1, 1])
-    </script>
+        channelData[i] = amplitude * Math.sin(2 * Math.PI * currentFrequency * t);
+    }
+
+    await GameEngine.AudioManager.PlaySound(audioBuffer, [0, 0, -1], [0, 1, 1])
+</script>
+
 </html>

@@ -19,21 +19,19 @@ class RenderingManager {
     opts;
     canvas;
     #lastCanvasSize = { width: 0, height: 0 }
+    #lastData = ""
 
     // raw gpu context
 
     adapter;
     device;
     context;
-    context2d;
 
     presentationFormat;
 
     // render pipeline
 
     renderPipeline;
-    #renderLayout
-    #renderBindGroup
 
     // compute pipeline
 
@@ -41,7 +39,6 @@ class RenderingManager {
     #computeLayout
     #computeBindGroup
 
-    #finalTexture;
     #renderTexture;
     #renderReadTexture;
 
@@ -63,61 +60,12 @@ class RenderingManager {
         this.opts = opts;
 
         //this.#Denoiser = new Denoiser(opts.canvas)
+
+        this.opts.cameraPosition = [0, 0, 0]
+        this.opts.cameraRotation = [0, 0, 0]
     }
 
     async #makeBindGroups() {
-        // Render
-
-        this.#computeGlobalData = this.device.createBuffer({
-            size: 4 * 2,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-
-        this.#finalTexture = this.device.createBuffer({
-            size: this.canvas.width * this.canvas.height * 3 * 4,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-
-        this.#renderLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "read-only-storage",
-                    },
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "read-only-storage",
-                    },
-                },
-            ],
-        });
-
-        this.#renderBindGroup = this.device.createBindGroup({
-            layout: this.#renderLayout,
-            label: "Browzium Engine render bind group",
-            entries: [
-                {
-                    binding: 0,
-                    resource: {
-                        buffer: this.#finalTexture,
-                    },
-                },
-                {
-                    binding: 1,
-                    resource: {
-                        buffer: this.#computeGlobalData,
-                    },
-                }
-            ],
-        });
-
-        // Compute
-
         /*
             Albedo - 3 channels (r, g, b)
 
@@ -135,6 +83,13 @@ class RenderingManager {
         this.#renderReadTexture = this.device.createBuffer({
             size: ComputeSize,
             usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+        });
+
+        // Data
+
+        this.#computeGlobalData = this.device.createBuffer({
+            size: (4 * 2) + 4 + (4 * 3) + (4 * 3),
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
         this.#computeLayout = this.device.createBindGroupLayout({
@@ -190,37 +145,6 @@ class RenderingManager {
     }
 
     async #makePipelines() {
-        //Render
-
-        const vertexShader = this.device.createShaderModule({ code: this.opts.shaders.vertex, label: "Browzium vertex shader" });
-        const fragmentShader = this.device.createShaderModule({ code: this.opts.shaders.fragment, label: "Browzium fragment shader" });
-
-        this.renderPipeline = this.device.createRenderPipeline({
-            layout: this.device.createPipelineLayout({
-                bindGroupLayouts: [this.#renderLayout],
-                label: "Browzium Engine Render Pipeline Layout",
-            }),
-            label: "Browzium Engine Render Pipeline",
-            vertex: {
-                module: vertexShader,
-                entryPoint: 'main',
-            },
-            fragment: {
-                module: fragmentShader,
-                entryPoint: 'main',
-                targets: [
-                    {
-                        format: this.presentationFormat,
-                    },
-                ],
-            },
-            primitive: {
-                topology: 'triangle-list',
-            }
-        })
-
-        // Compute
-
         const computeShader = this.device.createShaderModule({ code: this.opts.shaders.compute, label: "Browzium compute shader" });
 
         this.computePipeline = this.device.createComputePipeline({
@@ -246,7 +170,7 @@ class RenderingManager {
 
         passEncoder.setPipeline(this.computePipeline);
         passEncoder.setBindGroup(0, this.#computeBindGroup);
-        passEncoder.dispatchWorkgroups(Math.ceil(this.canvas.width) / 8, Math.ceil(this.canvas.height / 8), 1); //  Z for SPP
+        passEncoder.dispatchWorkgroups(Math.ceil(this.canvas.width / 8), Math.ceil(this.canvas.height / 8), 1); //  Z for SPP
         passEncoder.end();
 
         this.device.queue.submit([commandEncoder.finish()]);
@@ -267,54 +191,14 @@ class RenderingManager {
         this.#renderReadTexture.unmap();
 
         return data
-
-        /*const transformedData = new Uint8Array(this.canvas.width * this.canvas.height * 4);
-
-        for (let x = 0; x < this.canvas.width; x++) {
-            for (let y = 0; y < this.canvas.height; y++) {
-                let index = 4 * (y * this.canvas.width + x);
-
-                transformedData[index] = 0;
-                transformedData[index + 1] = 0;
-                transformedData[index + 2] = (this.canvas.width / x) * 255;
-                transformedData[index + 3] = 1;
-            }
-        }
-
-        this.device.queue.writeTexture({ texture: outputTexture }, transformedData,
-            { bytesPerRow: 4 * this.canvas.width },
-            { width: this.canvas.width, height: this.canvas.height }
-        );*/
     }
 
     async #renderImage(image) {
-        // Write image to buffer
-
-        console.log(image)
-        /*this.device.queue.writeBuffer(this.#finalTexture, 0, image, 0, image.length);
+        //console.log(image)
 
         // Write image to scren
 
-        const commandEncoder = this.device.createCommandEncoder();
-
-        const passEncoder = commandEncoder.beginRenderPass({
-            colorAttachments: [{
-                view: this.context.getCurrentTexture().createView(),
-                loadValue: { r: 1.0, g: 0, b: 1.0, a: 1.0 },
-                loadOp: "clear",
-                storeOp: 'store',
-            }],
-            label: "Browzium render pass"
-        });
-
-        passEncoder.setPipeline(this.renderPipeline);
-        passEncoder.setBindGroup(0, this.#renderBindGroup);
-        passEncoder.draw(6, 2, 0, 0);
-        passEncoder.end();
-
-        this.device.queue.submit([commandEncoder.finish()]);*/
-
-        const imageData = this.context2d.createImageData(this.canvas.width, this.canvas.height);
+        const imageData = this.context.createImageData(this.canvas.width, this.canvas.height);
         for (let i = 0; i < image.length; i++) {
             const index = i * 4;
             const rawIndex = i * 3;
@@ -325,13 +209,23 @@ class RenderingManager {
             imageData.data[index + 3] = 255;
         }
 
-        this.context2d.putImageData(imageData, 0, 0);
+        this.context.putImageData(imageData, 0, 0);
     }
 
     async #setGlobalData() {
         let globalData = new Float32Array([
             this.canvas.width,
-            this.canvas.height
+            this.canvas.height,
+
+            this.opts.fov,
+
+            this.opts.cameraPosition[0],
+            this.opts.cameraPosition[1],
+            this.opts.cameraPosition[2],
+            
+            this.opts.cameraRotation[0],
+            this.opts.cameraRotation[1],
+            this.opts.cameraRotation[2]
         ])
 
         this.device.queue.writeBuffer(this.#computeGlobalData, 0, globalData, 0, globalData.length);
@@ -355,6 +249,8 @@ class RenderingManager {
                 size: triangleData.length,
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             });
+
+            await this.#makeBindGroups()
         }
 
         triangleData[0] = triangleArray.length
@@ -362,15 +258,37 @@ class RenderingManager {
         for (let triIndex = 0; triIndex < triangleArray.length; triIndex++) {
 
         }
+    }
 
-        await this.#makeBindGroups()
+    SetFOV(newFOV){
+        this.opts.fov = newFOV
+    }
+
+    SetCameraPosition(cameraPosition){
+        this.opts.cameraPosition = cameraPosition
+    }
+
+    SetCameraRotation(cameraRotation){
+        this.opts.cameraRotation = cameraRotation
     }
 
     async RenderFrame() {
+        let changedData = false
+        let currentData = JSON.stringify({
+            fov: this.opts.fov
+        })
+
         if (this.canvas.width !== this.#lastCanvasSize.width || this.canvas.height !== this.#lastCanvasSize.height) {
             this.#lastCanvasSize = { width: this.canvas.width, height: this.canvas.height }
 
             await this.#makeBindGroups()
+            await this.#setGlobalData()
+            changedData = true;
+        }
+
+        if(!changedData && this.#lastData !== currentData){
+            this.#lastData = currentData
+
             await this.#setGlobalData()
         }
 
@@ -383,8 +301,7 @@ class RenderingManager {
     }
 
     async Init() {
-        //this.context = this.canvas.getContext('webgpu');
-        this.context2d = this.canvas.getContext('2d');
+        this.context = this.canvas.getContext('2d');
         this.adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
         if (!this.adapter) {
             throw Error("Couldn't request WebGPU adapter.");
@@ -392,13 +309,6 @@ class RenderingManager {
 
         this.device = await this.adapter.requestDevice({ label: "Browzium GPU Device" });
         this.presentationFormat = await navigator.gpu.getPreferredCanvasFormat();
-
-        /*await this.context.configure({
-            device: this.device,
-            format: this.presentationFormat,
-            alphaMode: "opaque",
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
-        })*/
 
         await this.SetTriangles([]);
         await this.#makeBindGroups();
