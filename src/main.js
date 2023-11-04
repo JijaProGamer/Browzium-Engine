@@ -7,9 +7,6 @@ class Engine {
 
     isActive;
 
-    lastFrameTime = performance.now();
-    lastStepTime = performance.now();
-
     constructor(opts = {}){
         opts = {
             audio: {
@@ -35,20 +32,21 @@ class Engine {
     }
 
     async RenderFrame(){
-        let delta = performance.now() - this.lastFrameTime
-        this.lastFrameTime = performance.now()
+        let startTime = performance.now()
 
-        //console.log(`frame render: ${delta}ms`)
         await this.RenderingManager.RenderFrame()
+
+        let delta = performance.now() - startTime
         
         return delta
     }
 
     async StepFrame(){
-        let delta = performance.now() - this.lastStepTime
-        this.lastStepTime = performance.now()
+        let startTime = performance.now()
+        
 
-        //console.log(`frame step: ${delta}ms`)
+
+        let delta = performance.now() - startTime
 
         return delta
     }

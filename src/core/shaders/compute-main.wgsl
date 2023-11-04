@@ -1,8 +1,10 @@
 struct InputGlobalData {
     resolution: vec2<f32>,
     fov: f32,
-    cameraPosition: Vector3,
-    cameraRotation: Vector3,
+    //cameraPosition: Vector3,
+    //cameraRotation: Vector3,
+    cameraPosition: vec3<f32>,
+    cameraRotation: vec3<f32>,
 };
 
 struct InputMapData {

@@ -32,6 +32,7 @@ class RenderingManager {
     // render pipeline
 
     renderPipeline;
+    #shouldUpdateData;
 
     // compute pipeline
 
@@ -62,7 +63,7 @@ class RenderingManager {
         //this.#Denoiser = new Denoiser(opts.canvas)
 
         this.opts.cameraPosition = [0, 0, 0]
-        this.opts.cameraRotation = [0, 0, 0]
+        this.opts.cameraRotation = [0, 0.2, -1]
     }
 
     async #makeBindGroups() {
@@ -88,7 +89,7 @@ class RenderingManager {
         // Data
 
         this.#computeGlobalData = this.device.createBuffer({
-            size: (4 * 2) + 4 + (4 * 3) + (4 * 3),
+            size: (4 * 2) + 4 + (4 * 4) + (4 * 4) + 4, // Trailing 4 for it to be compatible with x%4 == 0
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
@@ -212,7 +213,7 @@ class RenderingManager {
         this.context.putImageData(imageData, 0, 0);
     }
 
-    async #setGlobalData() {
+    #UpdateData() {
         let globalData = new Float32Array([
             this.canvas.width,
             this.canvas.height,
@@ -222,13 +223,16 @@ class RenderingManager {
             this.opts.cameraPosition[0],
             this.opts.cameraPosition[1],
             this.opts.cameraPosition[2],
+            0,
             
             this.opts.cameraRotation[0],
             this.opts.cameraRotation[1],
-            this.opts.cameraRotation[2]
+            this.opts.cameraRotation[2],
+            0,
         ])
 
         this.device.queue.writeBuffer(this.#computeGlobalData, 0, globalData, 0, globalData.length);
+        this.#shouldUpdateData = false;
     }
 
     async SetTriangles(triangleArray) {
@@ -262,34 +266,29 @@ class RenderingManager {
 
     SetFOV(newFOV){
         this.opts.fov = newFOV
+        this.#shouldUpdateData = true
     }
 
     SetCameraPosition(cameraPosition){
         this.opts.cameraPosition = cameraPosition
+        this.#shouldUpdateData = true
     }
 
     SetCameraRotation(cameraRotation){
         this.opts.cameraRotation = cameraRotation
+        this.#shouldUpdateData = true
     }
 
     async RenderFrame() {
-        let changedData = false
-        let currentData = JSON.stringify({
-            fov: this.opts.fov
-        })
-
         if (this.canvas.width !== this.#lastCanvasSize.width || this.canvas.height !== this.#lastCanvasSize.height) {
             this.#lastCanvasSize = { width: this.canvas.width, height: this.canvas.height }
 
             await this.#makeBindGroups()
-            await this.#setGlobalData()
-            changedData = true;
+            this.#shouldUpdateData = true
         }
 
-        if(!changedData && this.#lastData !== currentData){
-            this.#lastData = currentData
-
-            await this.#setGlobalData()
+        if(this.#shouldUpdateData){
+            this.#UpdateData();
         }
 
         let imageData = await this.#generateImage();
@@ -313,6 +312,7 @@ class RenderingManager {
         await this.SetTriangles([]);
         await this.#makeBindGroups();
         await this.#makePipelines();
+        this.#UpdateData();
 
         //await this.#Denoiser.Init()
     }

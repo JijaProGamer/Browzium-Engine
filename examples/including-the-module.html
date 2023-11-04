@@ -41,9 +41,11 @@
     const fov_slider = document.getElementById("slider");
     const fov_display = document.getElementById("fovDisplay");
 
+    const canvas = document.getElementsByTagName("canvas")[0];
+
     let GameEngine = new Engine({
         renderer: {
-            canvas: document.getElementsByTagName("canvas")[0],
+            canvas,
             fov: 90,
             shaders: {
                 compute: computeShaderSource
@@ -57,7 +59,49 @@
     let frames = 0;
     let frameTime = 0;
 
-    fov_slider.addEventListener("input", () => { fov_display.textContent = `FOV: ${slider.value}`; GameEngine.RenderingManager.SetFOV(slider.value) });
+    fov_slider.addEventListener("input", () => {
+        fov_display.textContent = `FOV: ${slider.value}`
+        GameEngine.RenderingManager.SetFOV(slider.value)
+    });
+
+    let lastAsked = performance.now() - 1000
+    canvas.addEventListener("click", async () => {
+        if (!document.pointerLockElement && (performance.now() - lastAsked) >= 1500) {
+            await canvas.requestPointerLock({
+                unadjustedMovement: true,
+            });
+        }
+    });
+
+    let PPI = 250;
+    let rotationX = 0;
+    let rotationY = 0;
+
+    function updatePosition(e) {
+        let movementX = e.movementX / PPI;
+        let movementY = e.movementY / PPI;
+
+        rotationX = (rotationX + movementX) % 2;
+        rotationY = (rotationY + movementY) % 2;
+
+        if (rotationX < -1) rotationX = -1;
+        if (rotationX > 1) rotationX = 1;
+        if (rotationY < -1) rotationY = -1;
+        if (rotationY > 1) rotationY = 1;
+
+        let length = Math.sqrt(rotationX * rotationX + rotationY * rotationY)
+        GameEngine.RenderingManager.SetCameraRotation([-rotationX / length, 0, -rotationY / length])
+    }
+
+    document.addEventListener("pointerlockchange", () => {
+        lastAsked = performance.now()
+        
+        if (document.pointerLockElement === canvas) {
+            document.addEventListener("mousemove", updatePosition, false);
+        } else {
+            document.removeEventListener("mousemove", updatePosition, false);
+        }
+    }, false);
 
     async function render() {
         if (frames > 1) {
