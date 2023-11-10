@@ -1,28 +1,32 @@
-class Vector3 {
+class Vector4 {
     x;
     y;
     z;
+    w;
 
-    constructor(x, y, z) {
+    constructor(x, y, z, w) {
         this.x = x || 0;
         this.y = y || 0;
         this.z = z || 0;
+        this.w = w || 0;
     }
 
-    set(x, y, z) {
+    set(x, y, z, w) {
         this.x = x;
         this.y = y;
         this.z = z;
+        this.w = w;
     }
 
     copy() {
-        return new Vector3(this.x, this.y, this.z);
+        return new Vector4(this.x, this.y, this.z, this.w);
     }
 
     add(vector) {
         this.x += vector.x;
         this.y += vector.y;
         this.z += vector.z;
+        this.w += vector.w;
         return this;
     }
 
@@ -30,6 +34,7 @@ class Vector3 {
         this.x -= vector.x;
         this.y -= vector.y;
         this.z -= vector.z;
+        this.w -= vector.w;
         return this;
     }
 
@@ -37,6 +42,7 @@ class Vector3 {
         this.x *= scalar;
         this.y *= scalar;
         this.z *= scalar;
+        this.w *= scalar;
         return this;
     }
 
@@ -45,6 +51,7 @@ class Vector3 {
             this.x /= scalar;
             this.y /= scalar;
             this.z /= scalar;
+            this.w /= scalar;
         } else {
             throw new Error("Division by zero is not allowed.");
         }
@@ -56,7 +63,7 @@ class Vector3 {
     }
 
     lengthSquared(){
-        return this.x * this.x + this.y * this.y + this.z * this.z;
+        return this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w;
     }
 
     normalize() {
@@ -65,19 +72,13 @@ class Vector3 {
             this.x /= len;
             this.y /= len;
             this.z /= len;
+            this.w /= len;
         }
         return this;
     }
 
     dot(vector) {
-        return this.x * vector.x + this.y * vector.y + this.z * vector.z;
-    }
-
-    cross(vector) {
-        const x = this.y * vector.z - this.z * vector.y;
-        const y = this.z * vector.x - this.x * vector.z;
-        const z = this.x * vector.y - this.y * vector.x;
-        return new Vector3(x, y, z);
+        return this.x * vector.x + this.y * vector.y + this.z * vector.z + this.w * vector.w;
     }
 
     static add(v1, v2) {
@@ -97,5 +98,5 @@ class Vector3 {
     }
 }
 
-export default Vector3;
-export { Vector3 };
+export default Vector4;
+export { Vector4 };

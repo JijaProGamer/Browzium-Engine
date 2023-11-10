@@ -1,42 +1,36 @@
-class Vector3 {
+class Vector2 {
     x;
     y;
-    z;
 
-    constructor(x, y, z) {
+    constructor(x, y) {
         this.x = x || 0;
         this.y = y || 0;
-        this.z = z || 0;
     }
 
-    set(x, y, z) {
+    set(x, y) {
         this.x = x;
         this.y = y;
-        this.z = z;
     }
 
     copy() {
-        return new Vector3(this.x, this.y, this.z);
+        return new Vector2(this.x, this.y);
     }
 
     add(vector) {
         this.x += vector.x;
         this.y += vector.y;
-        this.z += vector.z;
         return this;
     }
 
     subtract(vector) {
         this.x -= vector.x;
         this.y -= vector.y;
-        this.z -= vector.z;
         return this;
     }
 
     multiplyScalar(scalar) {
         this.x *= scalar;
         this.y *= scalar;
-        this.z *= scalar;
         return this;
     }
 
@@ -44,7 +38,6 @@ class Vector3 {
         if (scalar !== 0) {
             this.x /= scalar;
             this.y /= scalar;
-            this.z /= scalar;
         } else {
             throw new Error("Division by zero is not allowed.");
         }
@@ -55,8 +48,8 @@ class Vector3 {
         return Math.sqrt(this.lengthSquared());
     }
 
-    lengthSquared(){
-        return this.x * this.x + this.y * this.y + this.z * this.z;
+    lengthSquared() {
+        return this.x * this.x + this.y * this.y;
     }
 
     normalize() {
@@ -64,20 +57,12 @@ class Vector3 {
         if (len !== 0) {
             this.x /= len;
             this.y /= len;
-            this.z /= len;
         }
         return this;
     }
 
     dot(vector) {
-        return this.x * vector.x + this.y * vector.y + this.z * vector.z;
-    }
-
-    cross(vector) {
-        const x = this.y * vector.z - this.z * vector.y;
-        const y = this.z * vector.x - this.x * vector.z;
-        const z = this.x * vector.y - this.y * vector.x;
-        return new Vector3(x, y, z);
+        return this.x * vector.x + this.y * vector.y;
     }
 
     static add(v1, v2) {
@@ -97,5 +82,5 @@ class Vector3 {
     }
 }
 
-export default Vector3;
-export { Vector3 };
+export default Vector2
+export { Vector2 }

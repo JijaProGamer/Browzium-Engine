@@ -1,10 +1,10 @@
 struct InputGlobalData {
     resolution: vec2<f32>,
     fov: f32,
-    //cameraPosition: Vector3,
-    //cameraRotation: Vector3,
-    cameraPosition: vec3<f32>,
-    cameraRotation: vec3<f32>,
+    padding0: f32,
+    CameraPosition: vec3<f32>,
+    padding1: f32,
+    CameraToWorldMatrix: mat4x4<f32>,
 };
 
 struct InputMapData {
@@ -51,7 +51,7 @@ fn vector_mul_scalar(t: f32, v: Vector3) -> Vector3 {
 }
 
 fn vector_div(v1: Vector3, v2: Vector3) -> Vector3 {
-  return Vector3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
+  return Vector3(v1.x / v2.x, v1.y / v2.y, v1.z / v2.z);
 }
 
 fn vector_div_scalar(v: Vector3, t: f32) -> Vector3 {
@@ -63,8 +63,11 @@ fn vector_dot(v1: Vector3, v2: Vector3) -> f32 {
 }
 
 fn vector_cross(v1: Vector3, v2: Vector3) -> Vector3 {
-  return Vector3(v1.y * v2.z - v1.z * v2.y, v1.z * v2.z - v1.x * v2.z, v1.x * v2.y - v1.y * v2.z);
-}
+    return Vector3(
+        v1.y * v2.z - v1.z * v2.y,
+        v1.z * v2.x - v1.x * v2.z,
+        v1.x * v2.y - v1.y * v2.x
+    );}
 
 fn unit_vector(v: Vector3) -> Vector3 {
   return vector_div_scalar(v, vector_length(v));
@@ -123,12 +126,12 @@ fn unit_color(v: Color) -> Color {
   return color_div_scalar(v, color_length(v));
 }
 struct ray {
-  origin: Vector3,
-  direction: Vector3
+  origin: vec3<f32>,
+  direction: vec3<f32>
 };
 
-fn rayAt(r: ray, t: f32) -> Vector3 {
-  return vector_add(r.origin, vector_mul_scalar(t, r.direction));
+fn rayAt(r: ray, t: f32) -> vec3<f32> {
+  return r.origin + t * r.direction;
 }
 
 
@@ -137,72 +140,95 @@ struct Pixel {
     //albedo: array<u32, 3>,
 }
 
-//const upVector = Vector3(0.0f, 1.0f, 0.0f);
+fn hit_sphere(center: vec3<f32>, radius: f32, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> bool {
+    let oc = ray_origin - center;
+    let a = dot(ray_direction, ray_direction);
+    let b = 2.0 * dot(oc, ray_direction);
+    let c = dot(oc, oc) - radius * radius;
+    let discriminant = b * b - 4.0 * a * c;
 
-/*fn calculateNDCPos(
-    pixel: vec2<u32>
-) -> Vector3 {
-    let fovRadians = inputData.fov * (3.14159265358979323846 / 180.0);
-    let aspectRatio = inputData.resolution.x / inputData.resolution.y;
+    if discriminant >= 0.0 {
+        let t = (-b - sqrt(discriminant)) / (2.0 * a);
 
-    let right = unit_vector(vector_cross(inputData.cameraRotation, upVector));
-    Vector3 up = unit_vector(vector_cross(right, inputData.cameraRotation));
+        return t >= 0.0;
+    }
 
-    let d = 1.0 / f32(tan(fovRadians / 2.0));
+    return false;}
 
-    let Px = f32(pixel.x) + 0.5;
-    let Py = f32(pixel.y) + 0.5;
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>) -> Pixel {
+    var output: Pixel;
 
-    let ndcX = aspectRatio * (2.0 * Px / f32(inputData.resolution.x) - 1.0);
-    let ndcY = 1.0 - (2.0 * Py / f32(inputData.resolution.y));
+    /*output.noisy_color.r = direction.x;
+    output.noisy_color.g = direction.y;
+    output.noisy_color.b = direction.z;*/
 
-    let viewDir = unit_vector(vector_sub(inputData.cameraRotation, inputData.cameraPosition));
+    if (hit_sphere(vec3<f32>(0.0, 0.0, -5.0), 3, start, direction)) {
+        output.noisy_color.r = 1;
+        output.noisy_color.g = 1;
+        output.noisy_color.b = 1;
+    }
 
-    let rayDir = Vector3(ndcX, ndcY, d);
-    let NDCPos = cameraPos + rayDir * viewDir;
+    return output;
+}
 
-    return NDCPos;
-}*/
 
-const upVector = vec3<f32>(0, 0, 1);
+fn rotateVector(direction: vec3<f32>) -> vec3<f32> {
+    //return direction;
+    return (inputData.CameraToWorldMatrix * vec4f(direction, 0)).xyz;
+}
 
-fn calculateNDCPos(
+fn calculatePixelDirection(
     pixel: vec2<u32>
 ) -> vec3<f32> {
     let depth = tan(inputData.fov * (3.14159265358979323846 / 180.0) / 2.0);
     let aspectRatio = inputData.resolution.x / inputData.resolution.y;
 
-    let right = normalize(cross(inputData.cameraRotation, upVector));
-    let up = normalize(cross(right, inputData.cameraRotation));
+    let ndcX = (f32(pixel.x) + 0.5) / inputData.resolution.x;
+    let ndcY = (f32(pixel.y) + 0.5) / inputData.resolution.y;
 
-    let ndcX = aspectRatio * (2.0 * f32(pixel.x) / inputData.resolution.x - 1.0) * depth;
-    let ndcY = 1.0 - (2.0 * f32(pixel.y) / inputData.resolution.y) * depth;
+    let screenX = 2 * ndcX - 1;
+    let screenY = 1 - 2 * ndcY;
 
-    return normalize(inputData.cameraRotation + right * ndcX + up * ndcY);
+    let cameraX = screenX * aspectRatio * depth;
+    let cameraY = screenY * depth;
+
+    let cameraPos = vec3<f32>(cameraX, cameraY, -1);
+    //return cameraPos;
+    return rotateVector(cameraPos);
 }
 
 fn calculatePixelColor(
     pixel: vec2<u32>
 ) -> Pixel {
-    var output: Pixel;
-    let NDC = calculateNDCPos(pixel);
+    let direction = calculatePixelDirection(pixel);
+    let start = inputData.CameraPosition;
 
-    /*output.noisy_color.r = NDC.x + 0.5;
-    output.noisy_color.g = NDC.y + 0.5;
-    output.noisy_color.b = 0.5;*/
-
-    let a = 0.5 * (NDC.y + 1.0);
-    let White = Color(1, 1, 1);
-    let Blue = Color(0.5, 0.7, 1);
+    /*let a = 0.5 * (NDC.y + 1.0);
+    let White = Color(0.8, 0.8, 0.8);
+    let Blue = Color(0.3, 0.5, 0.8);
     let color = color_add(color_mul_scalar((1.0-a), White), color_mul_scalar(a, Blue));
 
     output.noisy_color.r = color.r;
     output.noisy_color.g = color.g;
-    output.noisy_color.b = color.b;
+    output.noisy_color.b = color.b;*/
 
     /*output.noisy_color.r = (NDC.x + 1) / 2;
     output.noisy_color.g = (NDC.y + 1) / 2;
     output.noisy_color.b = (NDC.z + 1) / 2;*/
+
+    /*output.noisy_color.r = pow(NDC.x, 1.0 / 2.2);
+    output.noisy_color.g = pow(NDC.y, 1.0 / 2.2);
+    output.noisy_color.b = pow(NDC.z, 1.0 / 2.2);*/
+
+    let output = RunTracer(direction, start);
+
+    /*output.noisy_color.r = NDC.x;
+    output.noisy_color.g = NDC.y;
+    output.noisy_color.b = NDC.z;*/
+
+    //output.noisy_color.r = inputData.resolution.x;
+    //output.noisy_color.g = inputData.resolution.y;
+    //output.noisy_color.b = inputData.fov;
 
     return output;
 }
@@ -218,7 +244,7 @@ fn run(
     let normalIndex = (index + imageSize * 2) * 3;
     let firstBounceNormalIndex = (index + imageSize * 3) * 3;
 
-    let pixelData = calculatePixelColor(vec2(pixel.x, pixel.y));
+    let pixelData = calculatePixelColor(pixel.xy);
 
     noise_image_buffer[noisyIndex + 0] = pixelData.noisy_color.r;
     noise_image_buffer[noisyIndex + 1] = pixelData.noisy_color.g;

@@ -1,8 +1,8 @@
 struct ray {
-  origin: Vector3,
-  direction: Vector3
+  origin: vec3<f32>,
+  direction: vec3<f32>
 };
 
-fn rayAt(r: ray, t: f32) -> Vector3 {
-  return vector_add(r.origin, vector_mul_scalar(t, r.direction));
+fn rayAt(r: ray, t: f32) -> vec3<f32> {
+  return r.origin + t * r.direction;
 }

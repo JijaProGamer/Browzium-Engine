@@ -1,11 +1,14 @@
 import AudioManager from "./core/audio/main.js";
 import RenderingManager from "./core/rendering/main.js";
+import CameraModel from "./core/rendering/camera.js";
 
 class Engine {
     AudioManager;
     RenderingManager;
 
     isActive;
+
+    Camera = new CameraModel();
 
     constructor(opts = {}){
         opts = {
@@ -17,13 +20,12 @@ class Engine {
                 shaders: {
 
                 },
-                fov: 90,
             },
             ...opts,
         }
 
         this.AudioManager = new AudioManager(opts.audio)
-        this.RenderingManager = new RenderingManager(opts.renderer)
+        this.RenderingManager = new RenderingManager(opts.renderer, this.Camera)
     }
 
     async InitActivation(){
@@ -67,3 +69,10 @@ class Engine {
 }
 
 export default Engine;
+
+import Vector2 from "./core/classes/Vector2.js";
+import Vector3 from "./core/classes/Vector3.js";
+import Vector4 from "./core/classes/Vector4.js";
+import Matrix from "./core/classes/Matrix.js";
+
+export { Vector2, Vector3, Vector4, Matrix}

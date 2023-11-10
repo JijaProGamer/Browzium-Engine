@@ -7,72 +7,65 @@ struct Pixel {
     //albedo: array<u32, 3>,
 }
 
-//const upVector = Vector3(0.0f, 1.0f, 0.0f);
+#include "path_trace.wgsl"
 
-/*fn calculateNDCPos(
-    pixel: vec2<u32>
-) -> Vector3 {
-    let fovRadians = inputData.fov * (3.14159265358979323846 / 180.0);
-    let aspectRatio = inputData.resolution.x / inputData.resolution.y;
+fn rotateVector(direction: vec3<f32>) -> vec3<f32> {
+    //return direction;
+    return (inputData.CameraToWorldMatrix * vec4f(direction, 0)).xyz;
+}
 
-    let right = unit_vector(vector_cross(inputData.cameraRotation, upVector));
-    Vector3 up = unit_vector(vector_cross(right, inputData.cameraRotation));
-
-    let d = 1.0 / f32(tan(fovRadians / 2.0));
-
-    let Px = f32(pixel.x) + 0.5;
-    let Py = f32(pixel.y) + 0.5;
-
-    let ndcX = aspectRatio * (2.0 * Px / f32(inputData.resolution.x) - 1.0);
-    let ndcY = 1.0 - (2.0 * Py / f32(inputData.resolution.y));
-
-    let viewDir = unit_vector(vector_sub(inputData.cameraRotation, inputData.cameraPosition));
-
-    let rayDir = Vector3(ndcX, ndcY, d);
-    let NDCPos = cameraPos + rayDir * viewDir;
-
-    return NDCPos;
-}*/
-
-const upVector = vec3<f32>(0, 0, 1);
-
-fn calculateNDCPos(
+fn calculatePixelDirection(
     pixel: vec2<u32>
 ) -> vec3<f32> {
     let depth = tan(inputData.fov * (3.14159265358979323846 / 180.0) / 2.0);
     let aspectRatio = inputData.resolution.x / inputData.resolution.y;
 
-    let right = normalize(cross(inputData.cameraRotation, upVector));
-    let up = normalize(cross(right, inputData.cameraRotation));
+    let ndcX = (f32(pixel.x) + 0.5) / inputData.resolution.x;
+    let ndcY = (f32(pixel.y) + 0.5) / inputData.resolution.y;
 
-    let ndcX = aspectRatio * (2.0 * f32(pixel.x) / inputData.resolution.x - 1.0) * depth;
-    let ndcY = 1.0 - (2.0 * f32(pixel.y) / inputData.resolution.y) * depth;
+    let screenX = 2 * ndcX - 1;
+    let screenY = 1 - 2 * ndcY;
 
-    return normalize(inputData.cameraRotation + right * ndcX + up * ndcY);
+    let cameraX = screenX * aspectRatio * depth;
+    let cameraY = screenY * depth;
+
+    let cameraPos = vec3<f32>(cameraX, cameraY, -1);
+    //return cameraPos;
+    return rotateVector(cameraPos);
 }
 
 fn calculatePixelColor(
     pixel: vec2<u32>
 ) -> Pixel {
-    var output: Pixel;
-    let NDC = calculateNDCPos(pixel);
+    let direction = calculatePixelDirection(pixel);
+    let start = inputData.CameraPosition;
 
-    /*output.noisy_color.r = NDC.x + 0.5;
-    output.noisy_color.g = NDC.y + 0.5;
-    output.noisy_color.b = 0.5;*/
-
-    let a = 0.5 * (NDC.y + 1.0);
-    let White = Color(1, 1, 1);
-    let Blue = Color(0.5, 0.7, 1);
+    /*let a = 0.5 * (NDC.y + 1.0);
+    let White = Color(0.8, 0.8, 0.8);
+    let Blue = Color(0.3, 0.5, 0.8);
     let color = color_add(color_mul_scalar((1.0-a), White), color_mul_scalar(a, Blue));
 
     output.noisy_color.r = color.r;
     output.noisy_color.g = color.g;
-    output.noisy_color.b = color.b;
+    output.noisy_color.b = color.b;*/
 
     /*output.noisy_color.r = (NDC.x + 1) / 2;
     output.noisy_color.g = (NDC.y + 1) / 2;
     output.noisy_color.b = (NDC.z + 1) / 2;*/
+
+    /*output.noisy_color.r = pow(NDC.x, 1.0 / 2.2);
+    output.noisy_color.g = pow(NDC.y, 1.0 / 2.2);
+    output.noisy_color.b = pow(NDC.z, 1.0 / 2.2);*/
+
+    let output = RunTracer(direction, start);
+
+    /*output.noisy_color.r = NDC.x;
+    output.noisy_color.g = NDC.y;
+    output.noisy_color.b = NDC.z;*/
+
+    //output.noisy_color.r = inputData.resolution.x;
+    //output.noisy_color.g = inputData.resolution.y;
+    //output.noisy_color.b = inputData.fov;
 
     return output;
 }

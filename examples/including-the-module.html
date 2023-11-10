@@ -23,17 +23,55 @@
         height: 80vh;
         display: block;
     }
+
+    h1,
+    h2,
+    h3,
+    p,
+    #fovDisplay,
+    #frame_time,
+    #frames_per_second {
+        color: #ffffff;
+    }
+
+    a {
+        color: #bb86fc;
+    }
+
+    canvas {
+        width: 80vw;
+        height: 80vh;
+        display: block;
+    }
+
+    #slider,
+    .container {
+        background-color: #333;
+    }
+
+    button,
+    .btn {
+        background-color: #4d4d4d;
+        color: #ffffff;
+    }
+
+    body {
+        background-color: #1a1a1a;
+        color: #ffffff;
+    }
 </style>
 
 <script type="module">
     import Engine from "../dist/bundle.js"
+    import { Vector3 } from "../dist/bundle.js"
     /*
         For real use, remove ../dist/bundle.js and instead use
 
         https://cdn.jsdelivr.net/gh/JijaProGamer/Browzium-Engine/dist/bundle.js
     */
-
     const computeShaderSource = await (await fetch("../src/core/shaders/compute.wgsl")).text();
+    const vertexShaderSource = await (await fetch("../src/core/shaders/vertex.wgsl")).text();
+    const fragmentShaderSource = await (await fetch("../src/core/shaders/fragment.wgsl")).text();
 
     const frame_time_ui = document.querySelector(`#frame_time`)
     const frames_per_second_ui = document.querySelector(`#frames_per_second`)
@@ -46,9 +84,10 @@
     let GameEngine = new Engine({
         renderer: {
             canvas,
-            fov: 90,
             shaders: {
-                compute: computeShaderSource
+                compute: computeShaderSource,
+                vertex: vertexShaderSource,
+                fragment: fragmentShaderSource,
             },
         }
     })
@@ -59,9 +98,10 @@
     let frames = 0;
     let frameTime = 0;
 
+    GameEngine.Camera.SetFOV(90)
     fov_slider.addEventListener("input", () => {
         fov_display.textContent = `FOV: ${slider.value}`
-        GameEngine.RenderingManager.SetFOV(slider.value)
+        GameEngine.Camera.SetFOV(slider.value)
     });
 
     let lastAsked = performance.now() - 1000
@@ -73,33 +113,149 @@
         }
     });
 
-    let PPI = 250;
+    // Camera rotation
+
+    let PPI = 400;
     let rotationX = 0;
     let rotationY = 0;
+    let rotationZ = 0;
 
-    function updatePosition(e) {
-        let movementX = e.movementX / PPI;
-        let movementY = e.movementY / PPI;
+    GameEngine.Camera.SetOrientation(new Vector3(0.1, 0.1, 1))
 
-        rotationX = (rotationX + movementX) % 2;
-        rotationY = (rotationY + movementY) % 2;
+    function updateOrientation(e) {
+        rotationX += e.movementX / PPI;
+        rotationY += e.movementY / PPI;
 
-        if (rotationX < -1) rotationX = -1;
-        if (rotationX > 1) rotationX = 1;
-        if (rotationY < -1) rotationY = -1;
-        if (rotationY > 1) rotationY = 1;
+        rotationX = Math.max(-1, Math.min(rotationX, 1))
+        rotationY = Math.max(-1, Math.min(rotationY, 1))
+        rotationZ = Math.sin(rotationX)
 
-        let length = Math.sqrt(rotationX * rotationX + rotationY * rotationY)
-        GameEngine.RenderingManager.SetCameraRotation([-rotationX / length, 0, -rotationY / length])
+        //GameEngine.Camera.SetOrientation(new Vector3(rotationX, -rotationY, 0.5))
+        GameEngine.Camera.SetOrientation(new Vector3(rotationX, rotationY, 1))
     }
+
+    // Camera position
+
+    let cameraPosition = new Vector3(0, 0, 0);
+    let targetPosition = new Vector3(0, 0, 0);
+    const cameraSpeed = 5;
+
+    let moveModes = { up: false, down: false, right: false, left: false, forward: false, back: false }
+
+    function MoveCameraPosition() {
+        let movePosition = new Vector3(0, 0, 0)
+
+        if(moveModes.up){
+            movePosition.y += 0.1;
+        }
+
+        if(moveModes.down){
+            movePosition.y -= 0.1;
+        }
+
+        if(moveModes.right){
+            movePosition.x += 0.1;
+        }
+
+        if(moveModes.left){
+            movePosition.x -= 0.1;
+        }
+
+        if(moveModes.forward){
+            movePosition.z += 0.1;
+        }
+
+        if(moveModes.back){
+            movePosition.z -= 0.1;
+        }
+
+        cameraPosition.add(movePosition)
+
+        GameEngine.Camera.SetPosition(cameraPosition)
+    }
+
+    document.addEventListener('keydown', (event) => {
+        switch (event.key) {
+            case 'w':
+                moveModes.forward = true
+                break;
+            case 'a':
+                moveModes.left = true
+                break;
+            case 's':
+                moveModes.back = true
+                break;
+            case 'd':
+                moveModes.right = true
+                break;
+            case 'e':
+                moveModes.down = true
+                break;
+            case 'q':
+                moveModes.up = true
+                break;
+        }
+    });
+
+    document.addEventListener('keyup', (event) => {
+        switch (event.key) {
+            case 'w':
+                moveModes.forward = false
+                break;
+            case 'a':
+                moveModes.left = false
+                break;
+            case 's':
+                moveModes.back = false
+                break;
+            case 'd':
+                moveModes.right = false
+                break;
+            case 'e':
+                moveModes.down = false
+                break;
+            case 'q':
+                moveModes.up = false
+                break;
+        }
+    });
+
+    // Other stuff
+
+    let normalSize = {}
+    let active = false;
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'o') {
+            active = !active
+
+            if (active) {
+                normalSize = { width: canvas.width, height: canvas.height }
+
+                canvas.height = screen.height
+                canvas.width = screen.width
+
+                if (canvas.requestFullscreen) {
+                    canvas.requestFullscreen();
+                }
+            } else {
+                canvas.height = normalSize.height
+                canvas.width = normalSize.height
+            }
+        }
+    });
 
     document.addEventListener("pointerlockchange", () => {
         lastAsked = performance.now()
-        
+
         if (document.pointerLockElement === canvas) {
-            document.addEventListener("mousemove", updatePosition, false);
+            normalSize = { width: canvas.width, height: canvas.height }
+            document.addEventListener("mousemove", updateOrientation, false);
         } else {
-            document.removeEventListener("mousemove", updatePosition, false);
+            document.removeEventListener("mousemove", updateOrientation, false);
+
+            canvas.height = normalSize.height
+            canvas.width = normalSize.height
         }
     }, false);
 
@@ -128,6 +284,7 @@
     requestAnimationFrame(render)
 
     setInterval(() => {
+        MoveCameraPosition()
         GameEngine.StepFrame()
     }, 1000 / 50)
 

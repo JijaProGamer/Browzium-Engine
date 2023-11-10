@@ -1,10 +1,10 @@
 struct InputGlobalData {
     resolution: vec2<f32>,
     fov: f32,
-    //cameraPosition: Vector3,
-    //cameraRotation: Vector3,
-    cameraPosition: vec3<f32>,
-    cameraRotation: vec3<f32>,
+    padding0: f32,
+    CameraPosition: vec3<f32>,
+    padding1: f32,
+    CameraToWorldMatrix: mat4x4<f32>,
 };
 
 struct InputMapData {
@@ -29,7 +29,7 @@ fn run(
     let normalIndex = (index + imageSize * 2) * 3;
     let firstBounceNormalIndex = (index + imageSize * 3) * 3;
 
-    let pixelData = calculatePixelColor(vec2(pixel.x, pixel.y));
+    let pixelData = calculatePixelColor(pixel.xy);
 
     noise_image_buffer[noisyIndex + 0] = pixelData.noisy_color.r;
     noise_image_buffer[noisyIndex + 1] = pixelData.noisy_color.g;
