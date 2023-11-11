@@ -38,12 +38,6 @@
         color: #bb86fc;
     }
 
-    canvas {
-        width: 80vw;
-        height: 80vh;
-        display: block;
-    }
-
     #slider,
     .container {
         background-color: #333;
@@ -64,6 +58,8 @@
 <script type="module">
     import Engine from "../dist/bundle.js"
     import { Vector3 } from "../dist/bundle.js"
+    import { OBJParser } from "../dist/bundle.js"
+
     /*
         For real use, remove ../dist/bundle.js and instead use
 
@@ -113,59 +109,67 @@
         }
     });
 
+    canvas.height = 80 / 100 * screen.height
+    canvas.width = 80 / 100 * screen.width
+
     // Camera rotation
 
     let PPI = 400;
+    let cameraRotation = new Vector3(0, 0, 0);
     let rotationX = 0;
     let rotationY = 0;
     let rotationZ = 0;
 
-    GameEngine.Camera.SetOrientation(new Vector3(0.1, 0.1, 1))
+    //GameEngine.Camera.SetOrientation(new Vector3(0.1, 0.1, 1))
 
     function updateOrientation(e) {
-        rotationX += e.movementX / PPI;
-        rotationY += e.movementY / PPI;
+        rotationX += (e.movementX / PPI)
+        rotationY += (e.movementY / PPI)
 
         rotationX = Math.max(-1, Math.min(rotationX, 1))
         rotationY = Math.max(-1, Math.min(rotationY, 1))
-        rotationZ = Math.sin(rotationX)
 
-        //GameEngine.Camera.SetOrientation(new Vector3(rotationX, -rotationY, 0.5))
-        GameEngine.Camera.SetOrientation(new Vector3(rotationX, rotationY, 1))
+        cameraRotation.x = rotationX
+        cameraRotation.y = rotationY
+        cameraRotation.z = -1
+
+        GameEngine.Camera.SetOrientation(cameraRotation)
     }
 
     // Camera position
 
-    let cameraPosition = new Vector3(0, 0, 0);
+    let cameraPosition = new Vector3(5, 0, -5);
     let targetPosition = new Vector3(0, 0, 0);
     const cameraSpeed = 5;
 
     let moveModes = { up: false, down: false, right: false, left: false, forward: false, back: false }
 
+    GameEngine.Camera.SetPosition(cameraPosition)
+
     function MoveCameraPosition() {
         let movePosition = new Vector3(0, 0, 0)
 
-        if(moveModes.up){
+        if (moveModes.up) {
             movePosition.y += 0.1;
         }
 
-        if(moveModes.down){
+        if (moveModes.down) {
             movePosition.y -= 0.1;
         }
 
-        if(moveModes.right){
+        if (moveModes.right) {
             movePosition.x += 0.1;
         }
 
-        if(moveModes.left){
+        if (moveModes.left) {
             movePosition.x -= 0.1;
         }
 
-        if(moveModes.forward){
+        if (moveModes.forward) {
             movePosition.z += 0.1;
         }
 
-        if(moveModes.back){
+        if (moveModes.back) {
             movePosition.z -= 0.1;
         }
 
@@ -222,7 +226,6 @@
 
     // Other stuff
 
-    let normalSize = {}
     let active = false;
 
     document.addEventListener('keydown', function (event) {
@@ -230,8 +233,6 @@
             active = !active
 
             if (active) {
-                normalSize = { width: canvas.width, height: canvas.height }
-
                 canvas.height = screen.height
                 canvas.width = screen.width
 
@@ -239,8 +240,8 @@
                     canvas.requestFullscreen();
                 }
             } else {
-                canvas.height = normalSize.height
-                canvas.width = normalSize.height
+                canvas.height = 80 / 100 * screen.height
+                canvas.width = 80 / 100 * screen.width
             }
         }
     });
@@ -249,13 +250,12 @@
         lastAsked = performance.now()
 
         if (document.pointerLockElement === canvas) {
-            normalSize = { width: canvas.width, height: canvas.height }
             document.addEventListener("mousemove", updateOrientation, false);
         } else {
             document.removeEventListener("mousemove", updateOrientation, false);
 
-            canvas.height = normalSize.height
-            canvas.width = normalSize.height
+            canvas.height = 80 / 100 * screen.height
+            canvas.width = 80 / 100 * screen.width
         }
     }, false);
 
@@ -288,12 +288,17 @@
         GameEngine.StepFrame()
     }, 1000 / 50)
 
-    const sampleRate = GameEngine.AudioManager.audioContext.sampleRate;
+    // Scene stuff
+
+    let cornellBox = OBJParser(await (await fetch("./cornellBox.obj")).text())
+    await GameEngine.Renderer.SetTriangles(cornellBox)
+
+    /*const sampleRate = GameEngine.Audio.audioContext.sampleRate;
     const duration = 1; // Duration of the rocket launch
     const startFrequency = 500; // Initial frequency
     const endFrequency = 2000; // Final frequency
     const numSamples = Math.floor(sampleRate * duration);
-    const audioBuffer = GameEngine.AudioManager.CreateAudioBuffer(numSamples, 1);
+    const audioBuffer = GameEngine.Audio.CreateAudioBuffer(numSamples, 1);
     const channelData = audioBuffer.getChannelData(0);
 
     for (let i = 0; i < numSamples; i++) {
@@ -305,7 +310,7 @@
         channelData[i] = amplitude * Math.sin(2 * Math.PI * currentFrequency * t);
     }
 
-    await GameEngine.AudioManager.PlaySound(audioBuffer, [0, 0, -1], [0, 1, 1])
+    await GameEngine.Audio.PlaySound(audioBuffer, [0, 0, -1], [0, 1, 1])*/
 </script>
 
 </html>

@@ -3,11 +3,12 @@
 /*
     Triangle struct:
 
-    a, b, c - 3 * 4 * 3
-
+    a, b, c - 3 * 4 * 4
+    na, nb, nc - 3 * 4 * 4
 */
 
-let triangleStride = 3 * 4 * 3;
+let vertexSize = 4;
+let triangleStride = (vertexSize * 3) + (vertexSize * 3);
 
 function getNext2Power(n) {
     return Math.pow(2, Math.ceil(Math.log2(n + 1)));
@@ -255,7 +256,7 @@ class RenderingManager {
 
         if (totalSize > oldSize) {
             this.#computeMapData = this.device.createBuffer({
-                size: triangleData.length,
+                size: triangleData.byteLength,
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             });
 
@@ -267,8 +268,47 @@ class RenderingManager {
         triangleData[0] = triangleArray.length
 
         for (let triIndex = 0; triIndex < triangleArray.length; triIndex++) {
+            let triangle = triangleArray[triIndex]
+            let locationStart = triangleStride * triIndex + startIndex;
 
+            // Vertices
+
+            triangleData[locationStart + 0] = triangle.a.x;
+            triangleData[locationStart + 1] = triangle.a.y;
+            triangleData[locationStart + 2] = triangle.a.z;
+            triangleData[locationStart + 3] = 0;
+
+            triangleData[locationStart + 4] = triangle.b.x;
+            triangleData[locationStart + 5] = triangle.b.y;
+            triangleData[locationStart + 6] = triangle.b.z;
+            triangleData[locationStart + 7] = 0;
+
+            triangleData[locationStart + 8] = triangle.c.x;
+            triangleData[locationStart + 9] = triangle.c.y;
+            triangleData[locationStart + 10] = triangle.c.z;
+            triangleData[locationStart + 11] = 0;
+
+            // Normals
+
+            triangleData[locationStart + 12] = triangle.na.x;
+            triangleData[locationStart + 13] = triangle.na.y;
+            triangleData[locationStart + 14] = triangle.na.z;
+            triangleData[locationStart + 15] = 0;
+
+            triangleData[locationStart + 16] = triangle.nb.x;
+            triangleData[locationStart + 17] = triangle.nb.y;
+            triangleData[locationStart + 18] = triangle.nb.z;
+            triangleData[locationStart + 19] = 0;
+
+            triangleData[locationStart + 20] = triangle.nc.x;
+            triangleData[locationStart + 21] = triangle.nc.y;
+            triangleData[locationStart + 22] = triangle.nc.z;
+            triangleData[locationStart + 23] = 0;
         }
+
+        console.log(triangleData, triangleStride)
+
+        this.device.queue.writeBuffer(this.#computeMapData, 0, triangleData, 0, triangleData.length);
     }
 
     async RenderFrame() {

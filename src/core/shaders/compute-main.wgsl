@@ -7,9 +7,19 @@ struct InputGlobalData {
     CameraToWorldMatrix: mat4x4<f32>,
 };
 
+struct Triangle {
+    a: vec3<f32>,
+    b: vec3<f32>,
+    c: vec3<f32>,
+
+    na: vec3<f32>,
+    nb: vec3<f32>,
+    nc: vec3<f32>
+}
+
 struct InputMapData {
-    triangle_count: u32,
-    triangles: array<u32>,
+    triangle_count: f32,
+    triangles: array<Triangle>,
 };
 
 @group(0) @binding(0) var<storage, read_write> noise_image_buffer: array<f32>;

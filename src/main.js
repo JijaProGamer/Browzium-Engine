@@ -3,8 +3,8 @@ import RenderingManager from "./core/rendering/main.js";
 import CameraModel from "./core/rendering/camera.js";
 
 class Engine {
-    AudioManager;
-    RenderingManager;
+    Audio;
+    Renderer;
 
     isActive;
 
@@ -24,19 +24,19 @@ class Engine {
             ...opts,
         }
 
-        this.AudioManager = new AudioManager(opts.audio)
-        this.RenderingManager = new RenderingManager(opts.renderer, this.Camera)
+        this.Audio = new AudioManager(opts.audio)
+        this.Renderer = new RenderingManager(opts.renderer, this.Camera)
     }
 
     async InitActivation(){
-        await this.AudioManager.Init()
-        await this.RenderingManager.Init()
+        await this.Audio.Init()
+        await this.Renderer.Init()
     }
 
     async RenderFrame(){
         let startTime = performance.now()
 
-        await this.RenderingManager.RenderFrame()
+        await this.Renderer.RenderFrame()
 
         let delta = performance.now() - startTime
         
@@ -75,4 +75,6 @@ import Vector3 from "./core/classes/Vector3.js";
 import Vector4 from "./core/classes/Vector4.js";
 import Matrix from "./core/classes/Matrix.js";
 
-export { Vector2, Vector3, Vector4, Matrix}
+import OBJParser from "./utilities/scene/OBJParser.js"
+
+export { Vector2, Vector3, Vector4, Matrix, OBJParser }
