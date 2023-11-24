@@ -3,12 +3,27 @@
 /*
     Triangle struct:
 
-    a, b, c - 3 * 4 * 4
-    na, nb, nc - 3 * 4 * 4
+    a, b, c - 3 * 4
+    na, nb, nc - 3 * 4
+    material_id - 4
+    padding0 - 4
+    padding1 - 4
+    padding2 - 4
 */
 
-let vertexSize = 4;
-let triangleStride = (vertexSize * 3) + (vertexSize * 3);
+let triangleStride = (3 * 4) + (3 * 4) + 4;
+
+/*
+    Material struct:
+
+    color - 4 * 4
+    transparency - 4
+    index_of_refraction - 4
+    padding0 - 4
+    padding1 - 4
+*/
+
+let materialStride = 4 + 1 + 1 + (1 * 2);
 
 function getNext2Power(n) {
     return Math.pow(2, Math.ceil(Math.log2(n + 1)));
@@ -20,6 +35,7 @@ class RenderingManager {
     opts;
     canvas;
     #lastCanvasSize = { width: 0, height: 0 }
+    #materials = [];
 
     // raw gpu context
 
@@ -31,15 +47,25 @@ class RenderingManager {
 
     // compute pipeline
 
-    computePipeline
-    #computeLayout
-    #computeBindGroup
+    computePipeline;
+    renderPipeline;
+
+    #computeDataBindGroup
+    #computeMaterialBindGroup
+    #computeMapBindGroup
+    #computeImageBindGroup
+
+    #computeDataLayout
+    #computeMaterialLayout
+    #computeMapLayout
+    #computeImageLayout
 
     #renderTexture;
     #renderReadTexture;
 
     #computeGlobalData;
     #computeMapData;
+    #computeMaterialData;
 
     // Camera
 
@@ -47,7 +73,12 @@ class RenderingManager {
 
     // Denoiser
 
-    #Denoiser
+    //#Denoiser
+
+    // Renderer Data
+
+    antiAlias = true;
+    gammaCorrect = true;
 
     constructor(opts = {}, Camera) {
         if (!navigator.gpu) {
@@ -68,13 +99,13 @@ class RenderingManager {
 
     async #makeBindGroups() {
         /*
-            Albedo - 3 channels (r, g, b)
+            Albedo - 4 channels (r, g, b, w)
 
         */
 
         // render textures
 
-        let TextureSize = this.canvas.width * this.canvas.height * 3 * 4;
+        let TextureSize = this.canvas.width * this.canvas.height * 4 * 4;
         let ComputeSize = TextureSize * 1;
 
         this.#renderTexture = this.device.createBuffer({
@@ -90,63 +121,74 @@ class RenderingManager {
         // Data
 
         this.#computeGlobalData = this.device.createBuffer({
-            size: 96,
+            size: 112,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
 
         // Bind groups
 
-        this.#computeBindGroup = this.device.createBindGroup({
-            layout: this.#computeLayout,
-            label: "Browzium Engine compute shader bind group",
+        this.#computeDataBindGroup = this.device.createBindGroup({
+            layout: this.#computeDataLayout,
+            label: "Browzium Engine compute shader data bind group",
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.#computeGlobalData,
+                    },
+                }
+            ],
+        });
+
+        this.#computeMaterialBindGroup = this.device.createBindGroup({
+            layout: this.#computeMaterialLayout,
+            label: "Browzium Engine compute shader material bind group",
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.#computeMaterialData,
+                    },
+                }
+            ],
+        });
+
+        this.#computeMapBindGroup = this.device.createBindGroup({
+            layout: this.#computeMapLayout,
+            label: "Browzium Engine compute shader map bind group",
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.#computeMapData,
+                    },
+                }
+            ],
+        });
+
+        this.#computeImageBindGroup = this.device.createBindGroup({
+            layout: this.#computeImageLayout,
+            label: "Browzium Engine compute shader image bind group",
             entries: [
                 {
                     binding: 0,
                     resource: {
                         buffer: this.#renderTexture,
                     },
-                },
-                {
-                    binding: 1,
-                    resource: {
-                        buffer: this.#computeGlobalData,
-                    },
-                },
-                {
-                    binding: 2,
-                    resource: {
-                        buffer: this.#computeMapData,
-                    },
-                },
+                }
             ],
         });
     }
 
     async #makePipelines() {
-        // Compute
+        const shader = this.device.createShaderModule({ code: this.opts.shader, label: "Browzium engine shader" });
 
-        const computeShader = this.device.createShaderModule({ code: this.opts.shaders.compute, label: "Browzium compute shader" });
-
-        this.#computeLayout = this.device.createBindGroupLayout({
+        this.#computeDataLayout = this.device.createBindGroupLayout({
             entries: [
                 {
                     binding: 0,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: {
-                        type: "storage",
-                    },
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: {
-                        type: "read-only-storage",
-                    },
-                },
-                {
-                    binding: 2,
-                    visibility: GPUShaderStage.COMPUTE,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     buffer: {
                         type: "read-only-storage",
                     },
@@ -154,17 +196,76 @@ class RenderingManager {
             ],
         });
 
+        this.#computeMaterialLayout = this.device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "read-only-storage",
+                    },
+                },
+            ],
+        });
+
+        this.#computeMapLayout = this.device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "read-only-storage",
+                    },
+                },
+            ],
+        });
+
+        this.#computeImageLayout = this.device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "storage",
+                    },
+                },
+            ],
+        });
+
+        let pipelineLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.#computeDataLayout, this.#computeMaterialLayout, this.#computeMapLayout, this.#computeImageLayout],
+            label: "Browzium Engine Pipeline Layout",
+        })
+
         this.computePipeline = this.device.createComputePipeline({
-            layout: this.device.createPipelineLayout({
-                bindGroupLayouts: [this.#computeLayout],
-                label: "Browzium Engine Compute Pipeline Layout",
-            }),
+            layout: pipelineLayout,
             label: "Browzium Engine Compute Pipeline",
             compute: {
-                module: computeShader,
-                entryPoint: "main",
+                module: shader,
+                entryPoint: "computeMain",
             },
         });
+
+        this.renderPipeline = this.device.createRenderPipeline({
+            layout: pipelineLayout,
+            label: "Browzium Engine Render Pipeline",
+            vertex: {
+                module: shader,
+                entryPoint: 'vertexMain',
+            },
+            fragment: {
+                module: shader,
+                entryPoint: 'fragmentMain',
+                targets: [
+                    {
+                        format: this.presentationFormat,
+                    },
+                ],
+            },
+            primitive: {
+                topology: 'triangle-list',
+            }
+        })
     }
 
     async #generateImage() {
@@ -176,15 +277,20 @@ class RenderingManager {
         const passEncoder = commandEncoder.beginComputePass();
 
         passEncoder.setPipeline(this.computePipeline);
-        passEncoder.setBindGroup(0, this.#computeBindGroup);
-        passEncoder.dispatchWorkgroups(Math.ceil(this.canvas.width / 8), Math.ceil(this.canvas.height / 8), 1); //  Z for SPP
+
+        passEncoder.setBindGroup(0, this.#computeDataBindGroup);
+        passEncoder.setBindGroup(1, this.#computeMapBindGroup);
+        passEncoder.setBindGroup(2, this.#computeMaterialBindGroup)
+        passEncoder.setBindGroup(3, this.#computeImageBindGroup);
+
+        passEncoder.dispatchWorkgroups(Math.ceil(this.canvas.width / 16), Math.ceil(this.canvas.height / 16), 1); //  Z for SPP
         passEncoder.end();
 
         this.device.queue.submit([commandEncoder.finish()]);
         await this.device.queue.onSubmittedWorkDone()
+    }
 
-        // Read the results
-
+    async #readImage(){
         const copyCommandEncoder = this.device.createCommandEncoder();
         copyCommandEncoder.copyBufferToBuffer(this.#renderTexture, 0, this.#renderReadTexture, 0, this.#renderReadTexture.size);
         this.device.queue.submit([copyCommandEncoder.finish()]);
@@ -200,32 +306,40 @@ class RenderingManager {
         return data
     }
 
-    async #renderImage(image) {
-        //console.log(image)
-
+    async #renderImage() {
         // Write image to scren
 
-        const imageData = this.context.createImageData(this.canvas.width, this.canvas.height);
-        
-        let size = image.length / 3;
-        for (let i = 0; i < size; i ++) {
-            const index = i * 4;
-            const rawIndex = i * 3;
+        const commandEncoder = this.device.createCommandEncoder();
+        const currentTexture = this.context.getCurrentTexture();
 
-            imageData.data[index] = image[rawIndex] * 255;
-            imageData.data[index + 1] = image[rawIndex + 1] * 255;
-            imageData.data[index + 2] = image[rawIndex + 2] * 255;
-            imageData.data[index + 3] = 255;
-        }
+        const passEncoder = commandEncoder.beginRenderPass({
+            colorAttachments: [{
+                view: currentTexture.createView(),
+                loadValue: { r: 1.0, g: 0, b: 1.0, a: 1.0 },
+                loadOp: "clear",
+                storeOp: 'store',
+            }],
+            label: "Browzium render pass"
+        });
 
-        this.context.putImageData(imageData, 0, 0);
+        passEncoder.setPipeline(this.renderPipeline);
+
+        passEncoder.setBindGroup(0, this.#computeDataBindGroup);
+        passEncoder.setBindGroup(1, this.#computeMapBindGroup);
+        passEncoder.setBindGroup(2, this.#computeMaterialBindGroup)
+        passEncoder.setBindGroup(3, this.#computeImageBindGroup);
+
+        passEncoder.draw(6, 2, 0, 0);
+        passEncoder.end();
+
+        this.device.queue.submit([commandEncoder.finish()]);
     }
 
     #UpdateData() {
         let computeGlobalData = new Float32Array([
             this.canvas.width,
             this.canvas.height,
-            
+
             this.#Camera.FieldOfView,
             0,
 
@@ -234,18 +348,74 @@ class RenderingManager {
             this.#Camera.Position.z,
             0,
 
-            ...this.#Camera.CameraToWorldMatrix.getContents()
+            ...this.#Camera.CameraToWorldMatrix.getContents(),
+
+            this.antiAlias,
+            this.gammaCorrect
         ])
 
         this.#Camera.wasCameraUpdated = false;
         this.device.queue.writeBuffer(this.#computeGlobalData, 0, computeGlobalData, 0, computeGlobalData.length);
     }
 
-    async SetTriangles(triangleArray, dontUpdateBuffer) {
-        let oldSize = (this.#computeMapData || { size: 0 }).size
-        let newSize = getNext2Power(triangleArray.length) * triangleStride
+    async SetMaterials(materialList, dontUpdateBuffer) {
+        this.#materials = materialList;
+        let startIndex = 0;
 
-        let startIndex = 1;
+        let oldSize = (this.#computeMaterialData || { size: 0 }).size / 4
+        let newSize = getNext2Power(Object.keys(materialList).length) * materialStride + startIndex
+
+        let totalSize = startIndex + newSize
+
+        while (totalSize % 4 > 0) {
+            totalSize++;
+        }
+
+        let materialData = new Float32Array(totalSize);
+
+        if (totalSize > oldSize) {
+            this.#computeMaterialData = this.device.createBuffer({
+                size: materialData.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            });
+
+            if (!dontUpdateBuffer) {
+                await this.#makeBindGroups()
+            }
+        }
+
+        let materialsKeys = Object.keys(materialList)
+        for (let matIndex = 0; matIndex < materialsKeys.length; matIndex++) {
+            let material = materialList[materialsKeys[matIndex]]
+            let locationStart = materialStride * matIndex + startIndex;
+
+            // Color
+
+            materialData[locationStart + 0] = material.diffuse.x;
+            materialData[locationStart + 1] = material.diffuse.y;
+            materialData[locationStart + 2] = material.diffuse.z;
+            materialData[locationStart + 3] = 0;
+
+            // Other stuff
+
+            materialData[locationStart + 4] = material.transparency;
+            materialData[locationStart + 5] = material.index_of_refraction;
+
+            // Padding
+
+            materialData[locationStart + 6] = 0;
+            materialData[locationStart + 7] = 0;
+        }
+
+        this.device.queue.writeBuffer(this.#computeMaterialData, 0, materialData, 0, materialData.length);
+    }
+
+    async SetTriangles(triangleArray, dontUpdateBuffer) {
+        let startIndex = 4;
+
+        let oldSize = (this.#computeMapData || { size: 0 }).size / 4
+        let newSize = getNext2Power(triangleArray.length) * triangleStride + startIndex
+
         let totalSize = startIndex + newSize
 
         while (totalSize % 4 > 0) {
@@ -260,13 +430,17 @@ class RenderingManager {
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             });
 
-            if(!dontUpdateBuffer){
+            if (!dontUpdateBuffer) {
                 await this.#makeBindGroups()
             }
         }
 
         triangleData[0] = triangleArray.length
+        triangleData[1] = 0
+        triangleData[2] = 0
+        triangleData[3] = 0
 
+        let materialsKeys = Object.keys(this.#materials)
         for (let triIndex = 0; triIndex < triangleArray.length; triIndex++) {
             let triangle = triangleArray[triIndex]
             let locationStart = triangleStride * triIndex + startIndex;
@@ -304,35 +478,40 @@ class RenderingManager {
             triangleData[locationStart + 21] = triangle.nc.y;
             triangleData[locationStart + 22] = triangle.nc.z;
             triangleData[locationStart + 23] = 0;
-        }
 
-        console.log(triangleData, triangleStride)
+            // Other data
+
+            triangleData[locationStart + 24] = materialsKeys.indexOf(triangle.material);
+            triangleData[locationStart + 25] = 0;
+            triangleData[locationStart + 26] = 0;
+            triangleData[locationStart + 27] = 0;
+        }
 
         this.device.queue.writeBuffer(this.#computeMapData, 0, triangleData, 0, triangleData.length);
     }
 
-    async RenderFrame() {
+    async RenderFrame(readImage) {
         if (this.canvas.width !== this.#lastCanvasSize.width || this.canvas.height !== this.#lastCanvasSize.height) {
             this.#lastCanvasSize = { width: this.canvas.width, height: this.canvas.height }
 
             await this.#makeBindGroups()
-            this.#Camera.wasCameraUpdated = false;
+            this.#Camera.wasCameraUpdated = true;
         }
 
-        if(this.#Camera.wasCameraUpdated){
+        if (this.#Camera.wasCameraUpdated) {
             this.#UpdateData();
         }
 
-        let imageData = await this.#generateImage();
-        await this.#renderImage(imageData);
+        await this.#generateImage();
+        await this.#renderImage();
 
-        /*let imageData = await this.#generateImage();
-        let denoisedImage = await this.#Denoiser.DenoiseImage(imageData)
-        await this.#renderImage(denoisedImage);*/
+        if(readImage){
+            return {image: this.#readImage()}
+        }
     }
 
     async Init() {
-        this.context = this.canvas.getContext('2d');
+        this.context = this.canvas.getContext('webgpu');
         this.adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
         if (!this.adapter) {
             throw Error("Couldn't request WebGPU adapter.");
@@ -341,6 +520,14 @@ class RenderingManager {
         this.device = await this.adapter.requestDevice({ label: "Browzium GPU Device" });
         this.presentationFormat = await navigator.gpu.getPreferredCanvasFormat();
 
+        await this.context.configure({
+            device: this.device,
+            format: this.presentationFormat,
+            alphaMode: "opaque",
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+        })
+
+        await this.SetMaterials([], true);
         await this.SetTriangles([], true);
         await this.#makePipelines();
         await this.#makeBindGroups();

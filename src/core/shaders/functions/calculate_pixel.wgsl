@@ -2,17 +2,7 @@
 #include "classes/color.wgsl"
 #include "classes/ray.wgsl"
 
-struct Pixel {
-    noisy_color: Color
-    //albedo: array<u32, 3>,
-}
-
 #include "path_trace.wgsl"
-
-fn rotateVector(direction: vec3<f32>) -> vec3<f32> {
-    //return direction;
-    return (inputData.CameraToWorldMatrix * vec4f(direction, 0)).xyz;
-}
 
 fn calculatePixelDirection(
     pixel: vec2<u32>
@@ -29,9 +19,7 @@ fn calculatePixelDirection(
     let cameraX = screenX * aspectRatio * depth;
     let cameraY = screenY * depth;
 
-    let cameraPos = vec3<f32>(cameraX, cameraY, -1);
-    //return cameraPos;
-    return rotateVector(cameraPos);
+    return (inputData.CameraToWorldMatrix * vec4<f32>(cameraX, cameraY, -1, 0)).xyz;
 }
 
 fn calculatePixelColor(

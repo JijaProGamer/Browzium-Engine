@@ -1,30 +1,70 @@
 struct InputGlobalData {
     resolution: vec2<f32>,
     fov: f32,
+
     padding0: f32,
     CameraPosition: vec3<f32>,
+
     padding1: f32,
     CameraToWorldMatrix: mat4x4<f32>,
+
+    antialias: f32,
+    gammacorrect: f32,
 };
 
 struct Triangle {
     a: vec3<f32>,
+    padding0: f32,
     b: vec3<f32>,
+    padding1: f32,
     c: vec3<f32>,
+    padding2: f32,
 
     na: vec3<f32>,
+    padding3: f32,
     nb: vec3<f32>,
-    nc: vec3<f32>
-}
+    padding4: f32,
+    nc: vec3<f32>,
+    padding5: f32,
+
+    material_index: f32,
+    padding6: f32,
+    padding7: f32,
+    padding8: f32,
+};
+
+struct Material {
+    color: vec3<f32>,
+    padding0: f32,
+
+    transparency: f32,
+    index_of_refraction: f32,
+
+    padding1: f32,
+    padding2: f32,
+};
 
 struct InputMapData {
     triangle_count: f32,
+    padding0: f32,
+    padding1: f32,
+    padding2: f32,
     triangles: array<Triangle>,
 };
 
-@group(0) @binding(0) var<storage, read_write> noise_image_buffer: array<f32>;
-@group(0) @binding(1) var<storage, read> inputData: InputGlobalData;
-@group(0) @binding(2) var<storage, read> inputMap: InputMapData;
+struct InputMaterialData {
+    materials: array<Material>,
+};
+
+struct Pixel {
+    noisy_color: vec3<f32>
+    //albedo: array<u32, 3>,
+}
+
+@group(0) @binding(0) var<storage, read> inputData: InputGlobalData;
+@group(1) @binding(0) var<storage, read> inputMap: InputMapData;
+@group(2) @binding(0) var<storage, read> inputMaterials: InputMaterialData;
+@group(3) @binding(0) var<storage, read_write> imageBuffer: array<Pixel>;
 
 struct Vector3 {
   x: f32,
@@ -145,12 +185,11 @@ fn rayAt(r: ray, t: f32) -> vec3<f32> {
 }
 
 
-struct Pixel {
-    noisy_color: Color
-    //albedo: array<u32, 3>,
-}
-
 fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> f32 {
+    /*if(!is_triangle_facing_camera(tri, ray_direction)){
+        return -1;
+    }*/
+
     let edge1 = tri.b - tri.a;
     let edge2 = tri.c - tri.a;
     let h = cross(ray_direction, edge2);
@@ -184,96 +223,52 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
     return t;
 }
 
+fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
+    let dotProductA = dot(tri.na, ray_direction);
+    let dotProductB = dot(tri.nb, ray_direction);
+    let dotProductC = dot(tri.nc, ray_direction);
+    
+    return dotProductA < 0.0 && dotProductB < 0.0 && dotProductC < 0.0;
+}
+
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>) -> Pixel {
     var output: Pixel;
 
     /*output.noisy_color.r = direction.x;
     output.noisy_color.g = direction.y;
-    output.noisy_color.b = direction.z;*/
+    output.noisy_color.b = direction.z;
+        
+    return output;*/
 
-    /*let triangle1 = Triangle(
-        vec3<f32>(-1.0, -1.0, 5.0),
-        vec3<f32>(1.0, -1.0, 5.0),
-        vec3<f32>(0.0, 1.0, 5.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0)
-    );
+    var hit: bool = false;
+    var depth: f32 = 999999;
+    var material: Material;
 
-    let triangle2 = Triangle(
-        vec3<f32>(-1.0, -1.0, 5.0),
-        vec3<f32>(0.0, 1.0, 5.0),
-        vec3<f32>(-1.0, 1.0, 5.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0)
-    );
-
-    // First triangle
-    if (hit_triangle(triangle1, start, direction) > 0) {
-        output.noisy_color.r = 1;
-        output.noisy_color.g = 1;
-        output.noisy_color.b = 1;
-    }
-
-    // Second triangle
-    if (hit_triangle(triangle2, start, direction) > 0) {
-        output.noisy_color.r = 1;
-        output.noisy_color.g = 1;
-        output.noisy_color.b = 1;
-    }*/
-
-    var hit = false;
-
-    /*for (var i: f32 = 0; i < inputMap.triangle_count; i = i + 1) {
+    for (var i: f32 = 0; i < inputMap.triangle_count; i = i + 1) {
         let currentTriangle = inputMap.triangles[u32(i)];
+        let hit_depth = hit_triangle(currentTriangle, start, direction);
 
-        if (hit_triangle(currentTriangle, start, direction) > 0) {
+        if (hit_depth > 0 && hit_depth < depth) {
+            material = inputMaterials.materials[u32(currentTriangle.material_index)];
+            depth = hit_depth;
             hit = true;
         }
-    }*/
-
-    let triangle1 = Triangle(
-        vec3<f32>(-1.0, -1.0, 5.0),
-        vec3<f32>(1.0, -1.0, 5.0),
-        vec3<f32>(0.0, 1.0, 5.0),
-
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0)
-    );
-
-    let triangle2 = Triangle(
-        vec3<f32>(-1.0, 1.0, 1.0),
-        vec3<f32>(0.0, 1.0, -1.0),
-        vec3<f32>(-1.0, 1.0, 1.0),
-
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0)
-    );
-
-    if (hit_triangle(triangle1, start, direction) > 0) {
-        hit = true;
-    }
-
-    if (hit_triangle(triangle2, start, direction) > 0) {
-        hit = true;
     }
 
     if(hit){
-        output.noisy_color.r = 1;
-        output.noisy_color.g = 1;
-        output.noisy_color.b = 1;
+        let distance = min(0.35, depth / 25);
+        //var distance: f32 = 0;
+
+        output.noisy_color.r = material.color.x - distance;
+        output.noisy_color.g = material.color.y - distance;
+        output.noisy_color.b = material.color.z - distance;
+
+        /*output.noisy_color.r = 1 - (depth / 5);
+        output.noisy_color.g = 1 - (depth / 10);
+        output.noisy_color.b = 0;*/
     }
 
     return output;
-}
-
-
-fn rotateVector(direction: vec3<f32>) -> vec3<f32> {
-    //return direction;
-    return (inputData.CameraToWorldMatrix * vec4f(direction, 0)).xyz;
 }
 
 fn calculatePixelDirection(
@@ -291,9 +286,7 @@ fn calculatePixelDirection(
     let cameraX = screenX * aspectRatio * depth;
     let cameraY = screenY * depth;
 
-    let cameraPos = vec3<f32>(cameraX, cameraY, -1);
-    //return cameraPos;
-    return rotateVector(cameraPos);
+    return (inputData.CameraToWorldMatrix * vec4<f32>(cameraX, cameraY, -1, 0)).xyz;
 }
 
 fn calculatePixelColor(
@@ -331,27 +324,132 @@ fn calculatePixelColor(
 
     return output;
 }
+const verticesPos = array(
+    vec2f( -1.0,  -1.0),
+    vec2f( 1.0,  -1.0),
+    vec2f( -1.0,  1.0),
+    
+    vec2f( -1.0,  1.0),
+    vec2f( 1.0,  -1.0),
+    vec2f( 1.0,  1.0),
+);
 
-fn run(
-    pixel: vec3<u32>,
-    index: u32
-){
-    let imageSize = u32(inputData.resolution.x * inputData.resolution.y);
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+};
 
-    let noisyIndex = index * 3;
-    let albedoIndex = (index + imageSize) * 3;
-    let normalIndex = (index + imageSize * 2) * 3;
-    let firstBounceNormalIndex = (index + imageSize * 3) * 3;
+@vertex 
+fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
+    var out: VertexOutput;
 
-    let pixelData = calculatePixelColor(pixel.xy);
-
-    noise_image_buffer[noisyIndex + 0] = pixelData.noisy_color.r;
-    noise_image_buffer[noisyIndex + 1] = pixelData.noisy_color.g;
-    noise_image_buffer[noisyIndex + 2] = pixelData.noisy_color.b;
+    out.position = vec4<f32>(verticesPos[vertexIndex], 0.0, 1.0);
+    
+    return out;
+}
+fn pixelToIndex(position: vec2<f32>) -> u32 {
+    return u32(position.x + position.y * inputData.resolution.x);
 }
 
-@compute @workgroup_size(8, 8, 1) 
-fn main(
+const FXAA_SPAN_MAX = 8.0;
+const FXAA_REDUCE_MUL = 1.0 / 8.0;
+const FXAA_REDUCE_MIN = 1.0 / 128.0;
+const luma = vec3<f32>(0.299, 0.587, 0.114);
+
+fn shouldApplyFXAA(color1: vec3<f32>, color2: vec3<f32>) -> bool {
+    let luma = vec3<f32>(0.299, 0.587, 0.114);
+    let luma1 = dot(color1, luma);
+    let luma2 = dot(color2, luma);
+    let lumaMin = min(luma1, luma2);
+    let lumaMax = max(luma1, luma2);
+    
+    let lumaRange = lumaMax - lumaMin;
+
+    return (lumaRange > 0.0) && (lumaRange > FXAA_REDUCE_MIN);
+}
+
+fn applyFXAA(centerColor: vec3<f32>, fragCoord: vec2<f32>) -> vec3<f32> {
+    let lumaCenter = dot(centerColor, luma);
+
+    let lumaTop = dot(imageBuffer[pixelToIndex(fragCoord + vec2<f32>(0.0, -1.0))].noisy_color, luma);
+    let lumaBottom = dot(imageBuffer[pixelToIndex(fragCoord + vec2<f32>(0.0, 1.0))].noisy_color, luma);
+    let lumaLeft = dot(imageBuffer[pixelToIndex(fragCoord + vec2<f32>(-1.0, 0.0))].noisy_color, luma);
+    let lumaRight = dot(imageBuffer[pixelToIndex(fragCoord + vec2<f32>(1.0, 0.0))].noisy_color, luma);
+
+    let lumaMax = max(max(max(abs(lumaCenter - lumaTop), abs(lumaCenter - lumaBottom)),
+                         abs(lumaCenter - lumaLeft)),
+                     abs(lumaCenter - lumaRight));
+
+    let blendFactor = clamp(1.0 / ((lumaMax * lumaMax) + 0.0001), 0.0, 1.0);
+
+    return mix(centerColor, (
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(0.0, -1.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(0.0, 1.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(-1.0, 0.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(1.0, 0.0))].noisy_color
+    ) * 0.25, blendFactor);
+}
+
+/*
+fn applyFXAA(centerColor: vec3<f32>, fragCoord: vec2<f32>) -> vec3<f32> {
+    let lumaCenter = dot(centerColor, luma);
+    var lumaMax = 0.0;
+
+    for (var x: f32 = -1.0; x <= 1.0; x += 1.0) {
+        for (var y: f32 = -1.0; y <= 1.0; y += 1.0) {
+            if (x == 0.0 && y == 0.0) {
+                continue;
+            }
+
+            let lumaNeighbor = dot(imageBuffer[pixelToIndex(fragCoord + vec2<f32>(x, y))].noisy_color, luma);
+            lumaMax = max(lumaMax, abs(lumaCenter - lumaNeighbor));
+        }
+    }
+
+    let blendFactor = clamp(1.0 / ((lumaMax * lumaMax) + 0.0001), 0.0, 1.0);
+
+    return mix(centerColor, (
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(0.0, -1.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(0.0, 1.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(-1.0, 0.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(1.0, 0.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(-1.0, -1.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(1.0, -1.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(-1.0, 1.0))].noisy_color +
+        imageBuffer[pixelToIndex(fragCoord + vec2<f32>(1.0, 1.0))].noisy_color
+    ) * 0.125, blendFactor);
+}
+*/
+
+@fragment 
+fn fragmentMain(@builtin(position) position: vec4<f32>) -> @location(0) vec4f {
+    // Indexing
+
+    var pixelPosition = position.xy;
+
+    if(pixelPosition.x < inputData.resolution.x / 2){
+        pixelPosition.x += inputData.resolution.x / 2;
+    } else {
+        pixelPosition.x -= inputData.resolution.x / 2;
+    }
+
+    let index = pixelToIndex(pixelPosition);
+    var pixel = imageBuffer[index].noisy_color;
+
+    if(inputData.antialias == 1){
+        pixel = applyFXAA(pixel, pixelPosition);
+    }
+
+    if(inputData.gammacorrect == 1){
+        pixel = pow(pixel, vec3<f32>(1.0 / 2.2));
+    }
+
+    // Displaying
+
+    return vec4<f32>(pixel.r, pixel.g, pixel.b, 1);
+}
+
+@compute @workgroup_size(16, 16, 1) 
+fn computeMain(
     @builtin(global_invocation_id) global_invocation_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>
@@ -361,5 +459,5 @@ fn main(
     }
 
     let index = global_invocation_id.x + global_invocation_id.y * u32(inputData.resolution.x);
-    run(global_invocation_id, index);
+    imageBuffer[index] = calculatePixelColor(global_invocation_id.xy);
 }

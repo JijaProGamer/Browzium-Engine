@@ -73,6 +73,10 @@ class Matrix {
         return this;
     }
 
+    inverse(){
+        throw new Error("Inverse not made yet.")
+    }
+
     static add(m1, m2) {
         return m1.copy().add(m2);
     }

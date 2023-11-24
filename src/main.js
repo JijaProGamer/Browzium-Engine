@@ -17,9 +17,7 @@ class Engine {
             },
 
             renderer: {
-                shaders: {
-
-                },
+                shader: "not_provided",
             },
             ...opts,
         }
@@ -74,7 +72,10 @@ import Vector2 from "./core/classes/Vector2.js";
 import Vector3 from "./core/classes/Vector3.js";
 import Vector4 from "./core/classes/Vector4.js";
 import Matrix from "./core/classes/Matrix.js";
+import Triangle from "./core/classes/Triangle.js";
+import Material from "./core/classes/Material.js";
 
 import OBJParser from "./utilities/scene/OBJParser.js"
+import parseMAT from "./utilities/scene/MATParser.js"
 
-export { Vector2, Vector3, Vector4, Matrix, OBJParser }
+export { Vector2, Vector3, Vector4, Matrix, Triangle, OBJParser, parseMAT, Material }

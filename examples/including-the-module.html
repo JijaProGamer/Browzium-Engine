@@ -13,6 +13,9 @@
     <input type="range" id="slider" min="30" max="120" value="90" step="1">
     <div id="fovDisplay">FOV: 90</div>
 
+    <input type="range" id="compressionSlider" min="0.5" max="10" value="1" step="0.25">
+    <div id="compressionDisplay">Compression rate: 1</div>
+
     <p id="frame_time">average frame time: %s</p>
     <p id="frames_per_second">frames per second: %s</p>
 </body>
@@ -30,7 +33,8 @@
     p,
     #fovDisplay,
     #frame_time,
-    #frames_per_second {
+    #frames_per_second,
+    #compressionDisplay {
         color: #ffffff;
     }
 
@@ -57,7 +61,7 @@
 
 <script type="module">
     import Engine from "../dist/bundle.js"
-    import { Vector3 } from "../dist/bundle.js"
+    import { Vector3, Triangle } from "../dist/bundle.js"
     import { OBJParser } from "../dist/bundle.js"
 
     /*
@@ -65,9 +69,8 @@
 
         https://cdn.jsdelivr.net/gh/JijaProGamer/Browzium-Engine/dist/bundle.js
     */
-    const computeShaderSource = await (await fetch("../src/core/shaders/compute.wgsl")).text();
-    const vertexShaderSource = await (await fetch("../src/core/shaders/vertex.wgsl")).text();
-    const fragmentShaderSource = await (await fetch("../src/core/shaders/fragment.wgsl")).text();
+
+    const shaderSource = await (await fetch("../src/core/shaders/compute.wgsl")).text();
 
     const frame_time_ui = document.querySelector(`#frame_time`)
     const frames_per_second_ui = document.querySelector(`#frames_per_second`)
@@ -75,16 +78,15 @@
     const fov_slider = document.getElementById("slider");
     const fov_display = document.getElementById("fovDisplay");
 
+    const compression_slider = document.getElementById("compressionSlider")
+    const compression_display = document.getElementById("compressionDisplay")
+
     const canvas = document.getElementsByTagName("canvas")[0];
 
     let GameEngine = new Engine({
         renderer: {
             canvas,
-            shaders: {
-                compute: computeShaderSource,
-                vertex: vertexShaderSource,
-                fragment: fragmentShaderSource,
-            },
+            shader: shaderSource,
         }
     })
 
@@ -109,8 +111,28 @@
         }
     });
 
-    canvas.height = 80 / 100 * screen.height
-    canvas.width = 80 / 100 * screen.width
+    let screenCompression = compression_slider.value;
+    let screenHeight;
+    let screenWidth;
+
+    compression_slider.addEventListener("input", () => {
+        compression_display.textContent = `Compression rate: ${compression_slider.value}`
+        screenCompression = compression_slider.value
+        setCanvasSize(screenHeight, screenWidth)
+    });
+
+    function setCanvasSize(height, width) {
+        screenHeight = height;
+        screenWidth = width;
+
+        canvas.height = height / screenCompression;
+        canvas.width = width / screenCompression;
+
+        canvas.style.width = width;
+        canvas.style.height = height;
+    }
+
+    setCanvasSize(80 / 100 * screen.height, 80 / 100 * screen.width)
 
     // Camera rotation
 
@@ -120,62 +142,67 @@
     let rotationY = 0;
     let rotationZ = 0;
 
-    //GameEngine.Camera.SetOrientation(new Vector3(0.1, 0.1, 1))
+    GameEngine.Camera.SetOrientation(new Vector3(0.1, 0.1, -1))
 
     function updateOrientation(e) {
-        rotationX += (e.movementX / PPI)
+        rotationX -= (e.movementX / PPI)
         rotationY += (e.movementY / PPI)
 
         rotationX = Math.max(-1, Math.min(rotationX, 1))
         rotationY = Math.max(-1, Math.min(rotationY, 1))
+        rotationZ = rotationX
 
+        //cameraRotation.x = 0
         cameraRotation.x = rotationX
         cameraRotation.y = rotationY
         cameraRotation.z = -1
+        //cameraRotation.z = rotationZ
 
         GameEngine.Camera.SetOrientation(cameraRotation)
     }
 
     // Camera position
 
-    let cameraPosition = new Vector3(5, 0, -5);
-    let targetPosition = new Vector3(0, 0, 0);
-    const cameraSpeed = 5;
-
+    let cameraPosition = new Vector3(0, 5, -2);
+    
+    let cameraSpeed = 0.05;
     let moveModes = { up: false, down: false, right: false, left: false, forward: false, back: false }
 
     GameEngine.Camera.SetPosition(cameraPosition)
 
     function MoveCameraPosition() {
-        let movePosition = new Vector3(0, 0, 0)
+        let moveDirection = new Vector3(0, 0, 0)
+        let right = new Vector3(0, 0, -1).cross(cameraRotation).normalize();
+        right.y = 0;
 
         if (moveModes.up) {
-            movePosition.y += 0.1;
+            moveDirection.add(new Vector3(0, 1 * cameraSpeed, 0));
         }
 
         if (moveModes.down) {
-            movePosition.y -= 0.1;
+            moveDirection.add(new Vector3(0, -1 * cameraSpeed, 0));
         }
 
         if (moveModes.right) {
-            movePosition.x += 0.1;
+            moveDirection.add(right.copy().multiplyScalar(cameraSpeed));
         }
 
         if (moveModes.left) {
-            movePosition.x -= 0.1;
+            moveDirection.add(right.copy().multiplyScalar(-cameraSpeed));
         }
 
         if (moveModes.forward) {
-            movePosition.z += 0.1;
+            moveDirection.add(cameraRotation.copy().multiplyScalar(-cameraSpeed));
         }
 
         if (moveModes.back) {
-            movePosition.z -= 0.1;
+            moveDirection.add(cameraRotation.copy().multiplyScalar(cameraSpeed));
         }
 
-        cameraPosition.add(movePosition)
+        cameraPosition.add(moveDirection)
 
-        GameEngine.Camera.SetPosition(cameraPosition)
+        if (moveDirection.lengthSquared() > 0)
+            GameEngine.Camera.SetPosition(cameraPosition)
     }
 
     document.addEventListener('keydown', (event) => {
@@ -192,10 +219,10 @@
             case 'd':
                 moveModes.right = true
                 break;
-            case 'e':
+            case 'q':
                 moveModes.down = true
                 break;
-            case 'q':
+            case 'e':
                 moveModes.up = true
                 break;
         }
@@ -215,10 +242,10 @@
             case 'd':
                 moveModes.right = false
                 break;
-            case 'e':
+            case 'q':
                 moveModes.down = false
                 break;
-            case 'q':
+            case 'e':
                 moveModes.up = false
                 break;
         }
@@ -233,15 +260,14 @@
             active = !active
 
             if (active) {
-                canvas.height = screen.height
-                canvas.width = screen.width
+                setCanvasSize(screen.height, screen.width)
+
 
                 if (canvas.requestFullscreen) {
                     canvas.requestFullscreen();
                 }
             } else {
-                canvas.height = 80 / 100 * screen.height
-                canvas.width = 80 / 100 * screen.width
+                setCanvasSize(80 / 100 * screen.height, 80 / 100 * screen.width)
             }
         }
     });
@@ -254,18 +280,20 @@
         } else {
             document.removeEventListener("mousemove", updateOrientation, false);
 
-            canvas.height = 80 / 100 * screen.height
-            canvas.width = 80 / 100 * screen.width
+            setCanvasSize(80 / 100 * screen.height, 80 / 100 * screen.width)
         }
     }, false);
 
+    let oldTime = performance.now()
     async function render() {
         if (frames > 1) {
             //return
         }
 
         //console.log("Rendering")
-        let delta = await GameEngine.RenderFrame()
+        let frameDelta = await GameEngine.RenderFrame()
+        let delta = performance.now() - oldTime
+        oldTime = performance.now()
 
         frames++;
         frameTime += delta;
@@ -290,8 +318,24 @@
 
     // Scene stuff
 
-    let cornellBox = OBJParser(await (await fetch("./cornellBox.obj")).text())
-    await GameEngine.Renderer.SetTriangles(cornellBox)
+    let cornellBox = OBJParser(await (await fetch("./cornellBox.obj")).text(), {
+        "cornellBox": await (await fetch("./cornellBox.mtl")).text()
+    })
+
+    await GameEngine.Renderer.SetMaterials(cornellBox.materials)
+    await GameEngine.Renderer.SetTriangles(cornellBox.triangles)
+
+    /*let triangle1 = new Triangle()
+    triangle1.a = new Vector3(-1.0, -1.0, 5.0)
+    triangle1.b = new Vector3(1.0, -1.0, 5.0)
+    triangle1.c = new Vector3(0.0, 1.0, 5.0)
+
+    let triangle2 = new Triangle()
+    triangle2.a = new Vector3(-3.0, -5.0, 3.0),
+    triangle2.b = new Vector3(0.0, -5.0, -3.0),
+    triangle2.c = new Vector3(3.0, -5.0, 3.0),
+
+    await GameEngine.Renderer.SetTriangles([triangle1, triangle2])*/
 
     /*const sampleRate = GameEngine.Audio.audioContext.sampleRate;
     const duration = 1; // Duration of the rocket launch

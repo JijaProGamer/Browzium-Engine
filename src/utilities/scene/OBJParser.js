@@ -1,96 +1,112 @@
 import Triangle from "../../core/classes/Triangle.js";
 import Vector3 from "../../core/classes/Vector3.js";
+import { Material } from "../../core/classes/Material.js";
 
-function parseOBJ(obj) {
-    const result = []
+import { parseMAT } from "./MATParser.js";
+
+function parseOBJ(obj, materialsCode=[]) {
+    const result = {
+        triangles: [],
+        materials: {}
+    }
 
     const lines = obj.split('\n');
-    const instructions = []
+
+    let normals = []
+    let textures = []
+    let vertices = []
+    let lastMaterial = "default"
 
     lines.forEach(line => {
         const parts = line.trim().split(/\s+/);
-        const keyword = parts[0];
+        const keyword = parts.shift();
 
         switch (keyword) {
             case 'v':
-                const vertex = new Vector3(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
-                instructions.push({ type: "vertex", data: vertex })
+                var vertex = new Vector3(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]));
+                vertices.push(vertex)
                 break;
             case 'vn':
-                const normal = new Vector3(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
-                instructions.push({ type: "normal", data: normal })
+                const normal = new Vector3(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]));
+                normals.push(normal)
+                break;
+            case 'vp':
+                var vertex = new Vector3(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]));
+                vertices.push(vertex)
+                break;
+            case 'mtllib':
+                var name = parts[0].split("/").pop().split("\\").pop().split(".mtl")[0]
+                if(!materialsCode[name]){
+                    throw new Error(`The OBJ file includes the material "${name}", but the file isnt provided in the "materialsCode" tab.`)
+                }
+                
+                result.materials = {...result.materials, ...parseMAT(materialsCode[name])}
+                break;
+            case 'usemtl':
+                var name = parts[0]
+                if(!result.materials[name]){
+                    throw new Error(`The OBJ file wans to use material "${name}" that hasn't been declared before`)
+                }
+
+                lastMaterial = name
+                
                 break;
             case 'f':
                 const faceVertices = [];
                 const faceTextures = [];
                 const faceNormals = [];
 
-                for (let i = 1; i < parts.length; i++) {
+                for (let i = 0; i < parts.length; i++) {
                     const indices = parts[i].split('/');
                     let vertexIndice = parseInt(indices[0]);
                     let textureIndice = parseInt(indices[1]);
                     let normalIndice = parseInt(indices[2]);
 
-                    if(vertexIndice < 0){
-                        let indicesLeft = -vertexIndice
-                        for(let currentIndex = instructions.length - 1; currentIndex >= 0; currentIndex--){
-                            if(instructions[currentIndex].type == "vertex"){
-                                indicesLeft -= 1;
-                            }
+                    if(vertexIndice > 0) vertexIndice -= 1;
+                    if(textureIndice > 0) textureIndice -= 1;
+                    if(normalIndice > 0) normalIndice -= 1;
 
-                            if(indicesLeft == 0){
-                                faceVertices.push(instructions[currentIndex].data);
-
-                                break
-                            }
-                        }
-                    } else {
-                        let indicesLeft = vertexIndice
-
-                        for(let currentIndex = 0; currentIndex < instructions.length; currentInde++){
-                            if(instructions[currentIndex].type == "vertex"){
-                                indicesLeft -= 1;
-                            }
-
-                            if(indicesLeft == 0){
-                                faceVertices.push(instructions[currentIndex].data);
-
-                                break
-                            }
-                        }
-                    }
+                    faceVertices.push(vertices.at(vertexIndice));
+                    faceTextures.push(textures.at(textureIndice));
+                    faceNormals.push(normals.at(normalIndice));
                 }
 
-                for(let triIndex = 0; triIndex < faceVertices.length - 2; triIndex += 1){
+                for (let triIndex = 0; triIndex < faceVertices.length - 2; triIndex++) {
                     const triangle = new Triangle();
-
-                    triangle.a = faceVertices[triIndex + 0];
+                
+                    triangle.a = faceVertices[0];
                     triangle.b = faceVertices[triIndex + 1];
                     triangle.c = faceVertices[triIndex + 2];
-
-                    triangle.na = faceNormals[triIndex + 0];
+                
+                    triangle.na = faceNormals[0];
                     triangle.nb = faceNormals[triIndex + 1];
                     triangle.nc = faceNormals[triIndex + 2];
 
-                    if(!triangle.na || !triangle.nb || !triangle.nc){
-                        let ab = triangle.b.subtract(triangle.a)
-                        let ac = triangle.c.subtract(triangle.a)
-                        let normal = ab.cross(ac).normalize()
-
+                    triangle.material = lastMaterial;
+                
+                    if (!triangle.na || !triangle.nb || !triangle.nc) {
+                        let ab = triangle.b.copy().subtract(triangle.a);
+                        let ac = triangle.c.copy().subtract(triangle.a);
+                        let normal = ab.cross(ac).normalize();
+                
                         triangle.na = normal;
                         triangle.nb = normal;
                         triangle.nc = normal;
                     }
-
-                    result.push(triangle);
+                
+                    result.triangles.push(triangle);
                 }
+                
+
                 break;
             default:
                 break;
         }
     });
 
-    console.log(result)
+    if(!result.materials.default){
+        result.materials.default = new Material()
+    }
     
     return result
 }
