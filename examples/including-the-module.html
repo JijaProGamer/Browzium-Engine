@@ -145,7 +145,7 @@
     GameEngine.Camera.SetOrientation(new Vector3(0.1, 0.1, -1))
 
     function updateOrientation(e) {
-        rotationX -= (e.movementX / PPI)
+        rotationX += (e.movementX / PPI)
         rotationY += (e.movementY / PPI)
 
         rotationX = Math.max(-1, Math.min(rotationX, 1))
@@ -159,6 +159,8 @@
         //cameraRotation.z = rotationZ
 
         GameEngine.Camera.SetOrientation(cameraRotation)
+
+        //console.log(cameraRotation)
     }
 
     // Camera position
@@ -172,8 +174,7 @@
 
     function MoveCameraPosition() {
         let moveDirection = new Vector3(0, 0, 0)
-        let right = new Vector3(0, 0, -1).cross(cameraRotation).normalize();
-        right.y = 0;
+        let right = new Vector3(0, 1, 0).cross(cameraRotation.copy().normalize()).normalize();
 
         if (moveModes.up) {
             moveDirection.add(new Vector3(0, 1 * cameraSpeed, 0));
@@ -284,6 +285,15 @@
         }
     }, false);
 
+    let framesTaken0 = 0;
+    let framesTaken1 = 0;
+
+    let frameTimes0 = 0;
+    let frameTimes1 = 0;
+
+    let frameTimes10s = 0
+    let frameTimes1m = 0
+
     let oldTime = performance.now()
     async function render() {
         if (frames > 1) {
@@ -294,13 +304,32 @@
         let frameDelta = await GameEngine.RenderFrame()
         let delta = performance.now() - oldTime
         oldTime = performance.now()
+        //let delta = await GameEngine.RenderFrame()
 
         frames++;
+        framesTaken0++;
+        framesTaken1++;
         frameTime += delta;
-
+        frameTimes10s += delta;
+        frameTimes1m += delta;
+ 
         if (frameTime > 1000) {
+            if(frameTimes10s > 10_000){
+                frameTimes0 = frameTimes10s / framesTaken0;
+
+                frameTimes10s = 0
+                framesTaken0 = 0
+            }
+
+            if(frameTimes1m > 60_000){
+                frameTimes1 = frameTimes1m / framesTaken1;
+
+                frameTimes1m = 0
+                framesTaken1 = 0
+            }
+
             frames_per_second_ui.innerHTML = `frames per second: ${(1000 / (frameTime / frames)).toFixed(2)}`;
-            frame_time_ui.innerHTML = `average frame time: ${(frameTime / frames).toFixed(2)}`;
+            frame_time_ui.innerHTML = `average frame time: ${(frameTime / frames).toFixed(2)} (1s) | ${frameTimes0.toFixed(2)} (10s) | ${frameTimes1.toFixed(2)} (1m)`;
 
             frames = 0;
             frameTime = 0;
@@ -323,7 +352,7 @@
     })
 
     await GameEngine.Renderer.SetMaterials(cornellBox.materials)
-    await GameEngine.Renderer.SetTriangles(cornellBox.triangles)
+    await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true)
 
     /*let triangle1 = new Triangle()
     triangle1.a = new Vector3(-1.0, -1.0, 5.0)

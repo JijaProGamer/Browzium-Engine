@@ -4,6 +4,12 @@
 
 #include "path_trace.wgsl"
 
+fn getTemporalData(
+    pixel: vec2<u32>
+) -> TemportalData {
+    return temporalBuffer[pixel.x + pixel.y * u32(inputData.resolution.x)];
+}
+
 fn calculatePixelDirection(
     pixel: vec2<u32>
 ) -> vec3<f32> {
@@ -22,38 +28,34 @@ fn calculatePixelDirection(
     return (inputData.CameraToWorldMatrix * vec4<f32>(cameraX, cameraY, -1, 0)).xyz;
 }
 
+fn calculateTemporalData(
+    pixel: vec2<u32>,
+    traceOutput: Pixel,
+    start: vec3<f32>,
+    direction: vec3<f32>,
+) -> TemportalData {
+    var output: TemportalData;
+
+    output.rayDirection = direction;
+
+    return output;
+}
+
 fn calculatePixelColor(
     pixel: vec2<u32>
-) -> Pixel {
+) -> TraceOutput {
     let direction = calculatePixelDirection(pixel);
     let start = inputData.CameraPosition;
 
-    /*let a = 0.5 * (NDC.y + 1.0);
-    let White = Color(0.8, 0.8, 0.8);
-    let Blue = Color(0.3, 0.5, 0.8);
-    let color = color_add(color_mul_scalar((1.0-a), White), color_mul_scalar(a, Blue));
+    var output: TraceOutput;
 
-    output.noisy_color.r = color.r;
-    output.noisy_color.g = color.g;
-    output.noisy_color.b = color.b;*/
+    let temporalData = getTemporalData(pixel);
+    var traceOutput = RunTracer(direction, start);
 
-    /*output.noisy_color.r = (NDC.x + 1) / 2;
-    output.noisy_color.g = (NDC.y + 1) / 2;
-    output.noisy_color.b = (NDC.z + 1) / 2;*/
+    traceOutput.velocity = (temporalData.rayDirection - direction).xy;
 
-    /*output.noisy_color.r = pow(NDC.x, 1.0 / 2.2);
-    output.noisy_color.g = pow(NDC.y, 1.0 / 2.2);
-    output.noisy_color.b = pow(NDC.z, 1.0 / 2.2);*/
-
-    let output = RunTracer(direction, start);
-
-    /*output.noisy_color.r = NDC.x;
-    output.noisy_color.g = NDC.y;
-    output.noisy_color.b = NDC.z;*/
-
-    //output.noisy_color.r = inputData.resolution.x;
-    //output.noisy_color.g = inputData.resolution.y;
-    //output.noisy_color.b = inputData.fov;
+    output.pixel = traceOutput;
+    output.temporalData = calculateTemporalData(pixel, traceOutput, start, direction);
 
     return output;
 }

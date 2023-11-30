@@ -13,8 +13,8 @@ class CameraModel {
 
     ComputeCameraToWorldMatrix() {
         let forward = this.Orientation.normalize();
-        let right = forward.cross(globalUpVector).normalize();
-        let up = right.cross(forward);
+        let right = globalUpVector.cross(forward).normalize();
+        let up = forward.cross(right);
 
         this.CameraToWorldMatrix.set(0, 0, right.x);          this.CameraToWorldMatrix.set(0, 1, right.y);         this.CameraToWorldMatrix.set(0, 2, right.z);         this.CameraToWorldMatrix.set(0, 3, 0);
         this.CameraToWorldMatrix.set(1, 0, up.x);             this.CameraToWorldMatrix.set(1, 1, up.y);            this.CameraToWorldMatrix.set(1, 2, up.z);            this.CameraToWorldMatrix.set(1, 3, 0);

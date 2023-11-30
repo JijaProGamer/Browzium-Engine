@@ -10,6 +10,7 @@ struct InputGlobalData {
 
     antialias: f32,
     gammacorrect: f32,
+    frame: f32,
 };
 
 struct Triangle {
@@ -40,7 +41,7 @@ struct Material {
     transparency: f32,
     index_of_refraction: f32,
 
-    padding1: f32,
+    reflectance: f32,
     padding2: f32,
 };
 
@@ -52,19 +53,49 @@ struct InputMapData {
     triangles: array<Triangle>,
 };
 
-struct InputMaterialData {
-    materials: array<Material>,
-};
-
 struct Pixel {
-    noisy_color: vec3<f32>
+    noisy_color: vec4<f32>,
+    normal: vec3<f32>,
+    velocity: vec2<f32>,
+    //depth: f32,
     //albedo: array<u32, 3>,
 }
 
+struct TemportalData {
+    rayDirection: vec3<f32>,
+}
+
+struct TraceOutput {
+    pixel: Pixel,
+    temporalData: TemportalData,
+}
+
+struct TreePart {
+    center: vec3<f32>,
+    padding0: f32,
+
+    halfSize: f32,
+    children: array<f32, 8>,
+    triangles: array<f32, 16>,
+    padding1: f32,
+
+    padding2: f32,
+    padding3: f32
+}
+
 @group(0) @binding(0) var<storage, read> inputData: InputGlobalData;
+
 @group(1) @binding(0) var<storage, read> inputMap: InputMapData;
-@group(2) @binding(0) var<storage, read> inputMaterials: InputMaterialData;
-@group(3) @binding(0) var<storage, read_write> imageBuffer: array<Pixel>;
+@group(1) @binding(1) var<storage, read> inputMaterials: array<Material>;
+@group(1) @binding(2) var<storage, read> inputTreeParts: array<TreePart>;
+
+@group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba8unorm, write>;
+@group(2) @binding(1) var image_color_texture_read: texture_2d<f32>;
+@group(2) @binding(2) var<storage, read_write> temporalBuffer: array<TemportalData>;
+
+//@group(2) @binding(0) var<storage, read_write> imageBuffer: array<Pixel>;
+///@group(2) @binding(1) var image_color_sampler: sampler;
+///@group(2) @binding(2) var<storage, read_write> temporalBuffer: array<TemportalData>;
 
 #include "functions/calculate_pixel.wgsl"
 #include "./vertex.wgsl"
@@ -81,5 +112,10 @@ fn computeMain(
     }
 
     let index = global_invocation_id.x + global_invocation_id.y * u32(inputData.resolution.x);
-    imageBuffer[index] = calculatePixelColor(global_invocation_id.xy);
+    let pixelData = calculatePixelColor(global_invocation_id.xy);
+
+    //imageBuffer[index] = pixelData.pixel;
+    //temporalBuffer[index] = pixelData.temporalData;
+
+    textureStore(image_color_texture, global_invocation_id.xy, pixelData.pixel.noisy_color);
 }
