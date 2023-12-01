@@ -46,7 +46,7 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 
     let t = f * dot(edge2, q);
 
-    if(t < 0.00001){
+    if(t < 0.01){
         return result;
     }
 

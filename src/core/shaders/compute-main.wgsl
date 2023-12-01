@@ -112,7 +112,7 @@ fn computeMain(
     }
 
     let index = global_invocation_id.x + global_invocation_id.y * u32(inputData.resolution.x);
-    let pixelData = calculatePixelColor(global_invocation_id.xy);
+    let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy));
 
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;

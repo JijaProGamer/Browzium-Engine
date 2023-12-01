@@ -30,7 +30,7 @@ fn Hit(
     return vec4<f32>(output, 1);
 }
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>) -> Pixel {
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     /*var hit = false;
@@ -68,23 +68,38 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>) -> Pixel {
         output.noisy_color = NoHit(direction, start);
     }*/
 
-    var ray_direction = normalize(direction + 0.01 * randomPoint(inputData.frame, direction));
-    var intersection = get_ray_intersection(start, ray_direction);
-    var tries = 0;
+    var pixelHash = rawPixelHash;
+    var intersection = get_ray_intersection(start, direction);
+    var lastDirection = direction;
+    var tries = 1;
 
-    output.noisy_color = Hit(intersection);
+    if(intersection.hit){
+        //output.noisy_color = Hit(intersection);
+        //output.noisy_color = vec4<f32>(randomPointInHemisphere(randomVec2(inputData.frame * 3.141592, vec2<f32>(pixel)) , intersection.normal, intersection.position), 1);
 
-    while(intersection.hit || tries <= 5){
-        tries ++;
+        while(tries <= 15){
+            //let reflectedDirection = lastDirection - 2.0 * dot(lastDirection, intersection.normal) * intersection.normal;
 
-        var scattered_direction = normalize(intersection.normal + randomPointInHemisphere(inputData.frame, intersection.normal, intersection.position));
-        intersection = get_ray_intersection(intersection.position, scattered_direction);
+            var direction_modifier = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+            pixelHash = direction_modifier.seed;
 
-        if(!intersection.hit){
-            output.noisy_color = output.noisy_color + NoHit(scattered_direction, intersection.position);
+            var scattered_direction = direction_modifier.output;
+            //var scattered_direction = normalize(reflectedDirection * intersection.material.reflectance + direction_modifier.output * (1 - intersection.material.reflectance));
+            lastDirection = scattered_direction;
+            intersection = get_ray_intersection(intersection.position, scattered_direction);
+
+            if(!intersection.hit){
+                output.noisy_color = output.noisy_color + NoHit(scattered_direction, intersection.position);
+                break;
+            }
+
+            output.noisy_color = output.noisy_color + Hit(intersection);
+            tries ++;
         }
 
-        output.noisy_color = output.noisy_color + Hit(intersection);
+        output.noisy_color /= f32(tries);
+    } else {
+        output.noisy_color = NoHit(direction, start);
     }
 
     return output;

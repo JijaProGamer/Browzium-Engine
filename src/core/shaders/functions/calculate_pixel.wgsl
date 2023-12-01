@@ -5,13 +5,13 @@
 #include "path_trace.wgsl"
 
 fn getTemporalData(
-    pixel: vec2<u32>
+    pixel: vec2<f32>
 ) -> TemportalData {
-    return temporalBuffer[pixel.x + pixel.y * u32(inputData.resolution.x)];
+    return temporalBuffer[u32(pixel.x + pixel.y * inputData.resolution.x)];
 }
 
 fn calculatePixelDirection(
-    pixel: vec2<u32>
+    pixel: vec2<f32>
 ) -> vec3<f32> {
     let depth = tan(inputData.fov * (3.14159265358979323846 / 180.0) / 2.0);
     let aspectRatio = inputData.resolution.x / inputData.resolution.y;
@@ -29,7 +29,7 @@ fn calculatePixelDirection(
 }
 
 fn calculateTemporalData(
-    pixel: vec2<u32>,
+    pixel: vec2<f32>,
     traceOutput: Pixel,
     start: vec3<f32>,
     direction: vec3<f32>,
@@ -42,20 +42,27 @@ fn calculateTemporalData(
 }
 
 fn calculatePixelColor(
-    pixel: vec2<u32>
+    pixel: vec2<f32>
 ) -> TraceOutput {
-    let direction = calculatePixelDirection(pixel);
+    var pixelHash = randomVec2(inputData.frame * 3.141592, pixel);
+
+    var pixelModifier = randomPoint2(pixelHash, pixel);
+    pixelHash = pixelModifier.seed;
+
+    var realPixel = pixel + pixelModifier.output;
+
+    let direction = calculatePixelDirection(realPixel);
     let start = inputData.CameraPosition;
 
     var output: TraceOutput;
 
-    let temporalData = getTemporalData(pixel);
-    var traceOutput = RunTracer(direction, start);
+    //let temporalData = getTemporalData(realPixel);
+    var traceOutput = RunTracer(direction, start, realPixel, pixelHash);
 
-    traceOutput.velocity = (temporalData.rayDirection - direction).xy;
+    //traceOutput.velocity = (temporalData.rayDirection - direction).xy;
 
     output.pixel = traceOutput;
-    output.temporalData = calculateTemporalData(pixel, traceOutput, start, direction);
+    //output.temporalData = calculateTemporalData(realPixel, traceOutput, start, direction);
 
     return output;
 }
