@@ -44,7 +44,7 @@ fn calculateTemporalData(
 fn calculatePixelColor(
     pixel: vec2<f32>
 ) -> TraceOutput {
-    var pixelHash = randomVec2(inputData.frame * 3.141592, pixel);
+    var pixelHash = randomVec2(image_history_data.totalFrames * 3.141592, pixel);
 
     var pixelModifier = randomPoint2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;

@@ -54,6 +54,7 @@ class RenderingManager {
 
     opts;
     canvas;
+    UpdateDataBuffer = false;
     #lastCanvasSize = { width: 0, height: 0 }
     #materials = [];
 
@@ -81,6 +82,10 @@ class RenderingManager {
     #renderTextureColor;
     #renderTextureReadColor;
 
+    #renderTextureHistory;
+    #renderTextureHistoryRead;
+    #renderHistoryData
+
     #temporalBuffer;
     #renderReadTexture;
 
@@ -102,6 +107,7 @@ class RenderingManager {
     antiAlias = true;
     gammaCorrect = true;
     frame = 0;
+    staticFrames = 0;
 
     constructor(opts = {}, Camera) {
         if (!navigator.gpu) {
@@ -153,6 +159,31 @@ class RenderingManager {
             usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
         });
 
+
+
+
+
+        this.#renderTextureHistory = this.device.createTexture({
+            size: { width: this.canvas.width, height: this.canvas.height },
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+        });
+
+        this.#renderTextureHistoryRead = this.device.createTexture({
+            size: { width: this.canvas.width, height: this.canvas.height },
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+        });
+
+        this.#renderHistoryData = this.device.createBuffer({
+            size: 8,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+
+
+
+
+
         this.#temporalBuffer = this.device.createBuffer({
             size: TemportalSize,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
@@ -166,7 +197,7 @@ class RenderingManager {
         // Data
 
         this.#computeGlobalData = this.device.createBuffer({
-            size: 116,
+            size: 112,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
@@ -225,6 +256,20 @@ class RenderingManager {
                 },
                 {
                     binding: 2,
+                    resource: this.#renderTextureHistory.createView(),
+                },
+                {
+                    binding: 3,
+                    resource: this.#renderTextureHistoryRead.createView(),
+                },
+                {
+                    binding: 4,
+                    resource: {
+                        buffer: this.#renderHistoryData,
+                    },
+                },
+                {
+                    binding: 5,
                     resource: {
                         buffer: this.#temporalBuffer,
                     },
@@ -298,6 +343,32 @@ class RenderingManager {
                 },
                 {
                     binding: 2,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    storageTexture: {
+                        access: "write-only",
+                        format: "rgba8unorm",
+                        viewDimension: "2d",
+                        multisampled: false,
+                    }
+                },
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    texture: {
+                        format: "rgba8unorm",
+                        viewDimension: "2d",
+                        multisampled: false,
+                    }
+                },
+                {
+                    binding: 4,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "read-only-storage"
+                    },
+                },
+                {
+                    binding: 5,
                     visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     buffer: {
                         type: "storage",
@@ -362,7 +433,7 @@ class RenderingManager {
         this.device.queue.submit([commandEncoder.finish()]);
         await this.device.queue.onSubmittedWorkDone()
 
-        // copy iamge
+        // copy image
 
         const copyEncoder = this.device.createCommandEncoder();
 
@@ -400,6 +471,26 @@ class RenderingManager {
     }
 
     async #renderImage() {
+        // copy basic denoised image
+
+        const copyEncoder = this.device.createCommandEncoder();
+
+        copyEncoder.copyTextureToTexture(
+            {
+                texture: this.#renderTextureHistory,
+            },
+            {
+                texture: this.#renderTextureHistoryRead,
+            },
+            {
+                width: this.canvas.width,
+                height: this.canvas.height,
+                depthOrArrayLayers: 1,
+            },
+        );
+
+        this.device.queue.submit([copyEncoder.finish()]);
+
         // Write image to scren
 
         const commandEncoder = this.device.createCommandEncoder();
@@ -443,12 +534,21 @@ class RenderingManager {
             ...this.#Camera.CameraToWorldMatrix.getContents(),
 
             this.antiAlias,
-            this.gammaCorrect,
-            this.frame,
+            this.gammaCorrect
         ])
 
         this.#Camera.wasCameraUpdated = false;
+        this.UpdateDataBuffer = false;
         this.device.queue.writeBuffer(this.#computeGlobalData, 0, computeGlobalData, 0, computeGlobalData.length);
+    }
+
+    #UpdateRenderData() {
+        let renderData = new Float32Array([
+            this.staticFrames,
+            this.frame
+        ])
+
+        this.device.queue.writeBuffer(this.#renderHistoryData, 0, renderData, 0, renderData.length);
     }
 
     SetMaterials(materialList, dontUpdateBuffer) {
@@ -667,16 +767,24 @@ class RenderingManager {
     }
 
     async RenderFrame(readImage) {
-        this.frame ++;
+        this.frame++;
 
         if (this.canvas.width !== this.#lastCanvasSize.width || this.canvas.height !== this.#lastCanvasSize.height) {
             this.#lastCanvasSize = { width: this.canvas.width, height: this.canvas.height }
 
             await this.#makeBindGroups()
-            this.#Camera.wasCameraUpdated = true;
+            this.UpdateDataBuffer = true;
         }
 
-        this.#UpdateData();
+        if(this.#Camera.wasCameraUpdated){
+            this.staticFrames = 0;
+        }
+
+        if (this.#Camera.wasCameraUpdated || this.UpdateDataBuffer) {
+            this.#UpdateData();
+        }
+
+        this.#UpdateRenderData()
 
         await this.#generateImage();
         await this.#renderImage();

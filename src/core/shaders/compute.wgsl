@@ -10,7 +10,6 @@ struct InputGlobalData {
 
     antialias: f32,
     gammacorrect: f32,
-    frame: f32,
 };
 
 struct Triangle {
@@ -83,15 +82,29 @@ struct TreePart {
     padding3: f32
 }
 
+struct OutputTextureData {
+    staticFrames: f32,
+    totalFrames: f32
+}
+
 @group(0) @binding(0) var<storage, read> inputData: InputGlobalData;
+
+
 
 @group(1) @binding(0) var<storage, read> inputMap: InputMapData;
 @group(1) @binding(1) var<storage, read> inputMaterials: array<Material>;
 @group(1) @binding(2) var<storage, read> inputTreeParts: array<TreePart>;
 
+
+
 @group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba8unorm, write>;
 @group(2) @binding(1) var image_color_texture_read: texture_2d<f32>;
-@group(2) @binding(2) var<storage, read_write> temporalBuffer: array<TemportalData>;
+
+@group(2) @binding(2) var image_history: texture_storage_2d<rgba8unorm, write>;
+@group(2) @binding(3) var image_history_read: texture_2d<f32>;
+@group(2) @binding(4) var<storage, read> image_history_data: OutputTextureData;
+
+@group(2) @binding(5) var<storage, read_write> temporalBuffer: array<TemportalData>;
 
 //@group(2) @binding(0) var<storage, read_write> imageBuffer: array<Pixel>;
 ///@group(2) @binding(1) var image_color_sampler: sampler;
@@ -650,7 +663,7 @@ fn calculateTemporalData(
 fn calculatePixelColor(
     pixel: vec2<f32>
 ) -> TraceOutput {
-    var pixelHash = randomVec2(inputData.frame * 3.141592, pixel);
+    var pixelHash = randomVec2(image_history_data.totalFrames * 3.141592, pixel);
 
     var pixelModifier = randomPoint2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
@@ -739,9 +752,17 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     //var pixel = imageBuffer[index].noisy_color;
     //var temporalData = temporalBuffer[index];
 
-    if(inputData.antialias == 1){
-        pixel = applyFXAA(pixel, pixelPosition);
+    if(image_history_data.staticFrames == 0){
+        textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
+    } else {
+        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
+        pixel = mix(historyPixel, pixel, 1 / image_history_data.staticFrames);
+        textureStore(image_history, pixelPosition, pixel);
     }
+
+    /*if(inputData.antialias == 1){
+        pixel = applyFXAA(pixel, pixelPosition);
+    }*/
 
     if(inputData.gammacorrect == 1){
         let oldTransparency = pixel.w;

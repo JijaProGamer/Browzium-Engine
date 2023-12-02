@@ -40,9 +40,17 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     //var pixel = imageBuffer[index].noisy_color;
     //var temporalData = temporalBuffer[index];
 
-    if(inputData.antialias == 1){
-        pixel = applyFXAA(pixel, pixelPosition);
+    if(image_history_data.staticFrames == 0){
+        textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
+    } else {
+        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
+        pixel = mix(historyPixel, pixel, 1 / image_history_data.staticFrames);
+        textureStore(image_history, pixelPosition, pixel);
     }
+
+    /*if(inputData.antialias == 1){
+        pixel = applyFXAA(pixel, pixelPosition);
+    }*/
 
     if(inputData.gammacorrect == 1){
         let oldTransparency = pixel.w;
