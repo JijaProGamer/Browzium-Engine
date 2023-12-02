@@ -768,6 +768,7 @@ class RenderingManager {
 
     async RenderFrame(readImage) {
         this.frame++;
+        this.staticFrames++;
 
         if (this.canvas.width !== this.#lastCanvasSize.width || this.canvas.height !== this.#lastCanvasSize.height) {
             this.#lastCanvasSize = { width: this.canvas.width, height: this.canvas.height }
@@ -812,6 +813,7 @@ class RenderingManager {
         })
 
         this.frame = 0;
+        this.staticFrames = 0;
 
         this.#SetOctree([], true);
         this.SetMaterials([], true);
