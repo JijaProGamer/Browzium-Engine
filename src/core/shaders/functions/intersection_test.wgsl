@@ -13,19 +13,21 @@ struct OctreeHitResult {
     treePart: TreePart,
 }
 
-fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
-    /*if(!is_triangle_facing_camera(tri, ray_direction)){
-        return -1;
-    }*/
+const errorAmount = 0.000001;
 
+fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var result: HitResult;
+
+    if(!is_triangle_facing_camera(tri, ray_direction)){
+        return result;
+    }
 
     let edge1 = tri.b - tri.a;
     let edge2 = tri.c - tri.a;
     let h = cross(ray_direction, edge2);
     let a = dot(edge1, h);
 
-    if (a > -0.00001 && a < 0.00001) {
+    if (a > -errorAmount && a < errorAmount) {
         return result;
     }
 
@@ -46,7 +48,7 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 
     let t = f * dot(edge2, q);
 
-    if(t < 0.01){
+    if(t < errorAmount){
         return result;
     }
 
@@ -59,130 +61,25 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 }
 
 fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> bool {
-    let invDir = vec3<f32>(1.0 / ray_direction.x, 1.0 / ray_direction.y, 1.0 / ray_direction.z);
+    var half_extent: vec3<f32> = vec3<f32>(box.halfSize, box.halfSize, box.halfSize);
+    var box_min: vec3<f32> = box.center - half_extent;
+    var box_max: vec3<f32> = box.center + half_extent;
 
-    let t1 = (box.center.x - box.halfSize - ray_origin.x) * invDir.x;
-    let t2 = (box.center.x + box.halfSize - ray_origin.x) * invDir.x;
-    let t3 = (box.center.y - box.halfSize - ray_origin.y) * invDir.y;
-    let t4 = (box.center.y + box.halfSize - ray_origin.y) * invDir.y;
-    let t5 = (box.center.z - box.halfSize - ray_origin.z) * invDir.z;
-    let t6 = (box.center.z + box.halfSize - ray_origin.z) * invDir.z;
+    var t_min: vec3<f32> = (box_min - ray_origin) / ray_direction;
+    var t_max: vec3<f32> = (box_max - ray_origin) / ray_direction;
 
-    let tmin = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
-    let tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+    var t1: vec3<f32> = min(t_min, t_max);
+    var t2: vec3<f32> = max(t_min, t_max);
 
-    return tmax >= max(0.0, tmin);
-}
+    var t_enter: f32 = max(max(t1.x, t1.y), t1.z);
+    var t_exit: f32 = min(min(t2.x, t2.y), t2.z);
 
-/*fn get_octree_hit(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> OctreeHitResult {
-    var result: OctreeHitResult;
-    var currentCheck = box;
-
-    while(true){
-        if(currentCheck.children[0] == -1){
-            break;
-        }
-
-        result.hit = true;
-        result.treePart = currentCheck;
-
-        //break;
-        for(var i = 0; i < 8; i++){
-            let childIndex = currentCheck.children[i];
-            let child = inputTreeParts[u32(childIndex)];
-
-            if(hit_octree(ray_origin, ray_direction, child)){
-                currentCheck = child;
-                //break;
-            }
-        }
-    }
-
-    return result;
-}*/
-
-fn get_octree_hit(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> OctreeHitResult {
-    var result: OctreeHitResult;
-    var stack: array<TreePart, 64>;
-    var stackIndex: i32 = 0;
-
-    stack[stackIndex] = box;
-    stackIndex++;
-
-    while (stackIndex > 0) {
-        stackIndex--;
-        let currentBox = stack[stackIndex];
-
-        let hit = hit_octree(ray_origin, ray_direction, currentBox);
-
-        if (hit) {
-            result.hit = true;
-            result.treePart = currentBox;
-
-            if (currentBox.children[0] == -1.0) {
-                return result;
-            }
-
-            for (var i: i32 = 0; i < 8; i = i + 1) {
-                let childIndex = currentBox.children[i];
-                let childNode = inputTreeParts[i32(childIndex)];
-
-                if (hit_octree(ray_origin, ray_direction, childNode)) {
-                    stack[stackIndex] = childNode;
-                    stackIndex++;
-                }
-            }
-        }
-    }
-
-    return result;
+    return t_enter <= t_exit;
 }
 
 fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
-
-    /*let octreeHit = get_octree_hit(ray_origin, ray_direction, inputTreeParts[0]);
-
-    if (!octreeHit.hit) {
-        return result;
-    }
-
-    for (var i: i32 = 0; i < 16; i = i + 1) {
-        let triIndex = octreeHit.treePart.triangles[i];
-        if (triIndex == -1) {
-            break;
-        }
-
-        let currentTriangle = inputMap.triangles[i32(triIndex)];
-        let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
-
-        if (current_result.hit && current_result.depth < depth) {
-            result = current_result;
-            depth = result.depth;
-            result.material = inputMaterials[i32(currentTriangle.material_index)];
-        }
-    }*/
-
-    /*for(var j = 0; j < 17; j++){
-        let octreeHit = inputTreeParts[j];
-        
-        for(var i = 0; i < 16; i++){
-            let triIndex = octreeHit.triangles[i];
-            if (triIndex == -1) {
-                break;
-            }
-
-            let currentTriangle = inputMap.triangles[i32(triIndex)];
-            let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
-
-            if (current_result.hit && current_result.depth < depth) {
-                result = current_result;
-                depth = result.depth;
-                result.material = inputMaterials[i32(currentTriangle.material_index)];
-            }
-        }
-    }*/
 
     for (var i: f32 = 0; i < inputMap.triangle_count; i = i + 1) {
         let currentTriangle = inputMap.triangles[i32(i)];
@@ -197,6 +94,61 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
 
     return result;
 }
+
+/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+    var depth: f32 = 9999999;
+    var result: HitResult;
+
+    var stack: array<TreePart, 64>;
+    var stackIndex: i32 = 0;
+
+    stack[stackIndex] = inputTreeParts[0];
+    stackIndex++;
+
+    if (!hit_octree(ray_origin, ray_direction, stack[0])) {
+        return result;
+    }
+
+    while (stackIndex > 0) {
+        stackIndex--;
+        let currentBox = stack[stackIndex];
+
+        let hit = hit_octree(ray_origin, ray_direction, currentBox);
+
+        if (hit) {
+            if (currentBox.children[0] == -1.0) {
+                for (var i: f32 = 0; i < 16; i = i + 1) {
+                    let triIndex = i32(currentBox.triangles[i32(i)]);
+                    if(triIndex == -1) { break; }
+
+                    let currentTriangle = inputMap.triangles[triIndex];
+                    let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
+
+                    if (current_result.hit && current_result.depth < depth) {
+                        result = current_result;
+                        depth = result.depth;
+                        result.material = inputMaterials[i32(currentTriangle.material_index)];
+                    }
+                }
+
+                continue;
+            }
+
+            for (var i: i32 = 0; i < 8; i = i + 1) {
+                let childIndex = currentBox.children[i];
+                let childNode = inputTreeParts[i32(childIndex)];
+
+                if (hit_octree(ray_origin, ray_direction, childNode)) {
+                    stack[stackIndex] = childNode;
+                    stackIndex++;
+                }
+            }
+        }
+    }
+
+
+    return result;
+}*/
 
 fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
     let dotProductA = dot(tri.na, ray_direction);

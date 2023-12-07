@@ -43,6 +43,9 @@ function parseMAT(mat) {
             case 'Ni':
                 result[lastMaterial].index_of_refraction = parseFloat(parts[0])
                 break;
+            case "Em":
+                result[lastMaterial].emittance = parseFloat(parts[0])
+                break;
             case 'illum':
                 result[lastMaterial].illumination_mode = parseFloat(parts[0])
                 break;

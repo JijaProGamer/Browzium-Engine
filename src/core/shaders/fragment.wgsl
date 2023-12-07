@@ -1,25 +1,11 @@
-const luma = vec4<f32>(0.299, 0.587, 0.114, 0);
+const ACES_a = 2.51;
+const ACES_b = 0.03;
+const ACES_c = 2.43;
+const ACES_d = 0.59;
+const ACES_e = 0.14;
 
-fn applyFXAA(centerColor: vec4<f32>, fragCoord: vec2<i32>) -> vec4<f32> {
-    let lumaCenter = dot(centerColor, luma);
-
-    let lumaTop = dot(textureLoad(image_color_texture_read, fragCoord + vec2(0, -1), 0), luma);
-    let lumaBottom = dot(textureLoad(image_color_texture_read, fragCoord + vec2(0, 1), 0), luma);
-    let lumaLeft = dot(textureLoad(image_color_texture_read, fragCoord + vec2(-1, 0), 0), luma);
-    let lumaRight = dot(textureLoad(image_color_texture_read, fragCoord + vec2(1, 0), 0), luma);
-
-    let lumaMax = max(max(max(abs(lumaCenter - lumaTop), abs(lumaCenter - lumaBottom)),
-                         abs(lumaCenter - lumaLeft)),
-                     abs(lumaCenter - lumaRight));
-
-    let blendFactor = clamp(1.0 / ((lumaMax * lumaMax) + 0.0001), 0.0, 1.0);
-
-    return mix(centerColor, (
-        textureLoad(image_color_texture_read, fragCoord + vec2(0, -1), 0) +
-        textureLoad(image_color_texture_read, fragCoord + vec2(0, 1), 0) +
-        textureLoad(image_color_texture_read, fragCoord + vec2(-1, 0), 0) +
-        textureLoad(image_color_texture_read, fragCoord + vec2(1, 0), 0)
-    ) * 0.25, blendFactor);
+fn applyACES(x: vec3<f32>) -> vec3<f32> {
+    return clamp((x * (ACES_a * x + ACES_b)) / (x * (ACES_c * x + ACES_d) + ACES_e), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 @fragment 
@@ -36,21 +22,42 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     }*/
 
     //let index = pixelToIndex(pixelPosition);
+
     var pixel = textureLoad(image_color_texture_read, pixelPosition, 0);
+    //var pixel = textureLoad(image_albedo_texture_read, pixelPosition, 0);
+
     //var pixel = imageBuffer[index].noisy_color;
     //var temporalData = temporalBuffer[index];
+
+    /*if(image_history_data.staticFrames == 0){
+        textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
+    } else {
+        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
+
+        //pixel = (pixel + historyPixel) / 2;
+        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.01, 1));
+        //pixel = mix(historyPixel, pixel, 1 / image_history_data.staticFrames);
+        textureStore(image_history, pixelPosition, pixel);
+    }*/
 
     if(image_history_data.staticFrames == 0){
         textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
     } else {
+        let w = pixel.w;
+
         let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
-        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.05, 1));
-        textureStore(image_history, pixelPosition, pixel);
+        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.025, 1)); 
+
+        if(w > 0){
+            textureStore(image_history, pixelPosition, pixel);
+        }
+
+        pixel.w = 1;
     }
 
-    /*if(inputData.antialias == 1){
-        pixel = applyFXAA(pixel, pixelPosition);
-    }*/
+    if(inputData.tonemapmode == 1){
+        pixel = vec4<f32>(applyACES(pixel.xyz), pixel.w);
+    }
 
     if(inputData.gammacorrect == 1){
         let oldTransparency = pixel.w;

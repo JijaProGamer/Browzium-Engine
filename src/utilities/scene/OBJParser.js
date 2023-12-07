@@ -45,7 +45,7 @@ function parseOBJ(obj, materialsCode=[]) {
             case 'usemtl':
                 var name = parts[0]
                 if(!result.materials[name]){
-                    throw new Error(`The OBJ file wans to use material "${name}" that hasn't been declared before`)
+                    throw new Error(`The OBJ file wants to use material "${name}" that hasn't been declared`)
                 }
 
                 lastMaterial = name

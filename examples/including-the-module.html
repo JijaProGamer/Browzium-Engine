@@ -90,6 +90,9 @@
         }
     })
 
+    GameEngine.Renderer.tonemapMode = 1;
+    GameEngine.Renderer.gammaCorrect = true;
+
     await GameEngine.AwaitPageActivation()
     await GameEngine.InitActivation()
 
@@ -353,6 +356,13 @@
 
     await GameEngine.Renderer.SetMaterials(cornellBox.materials)
     await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true)
+
+    /*let flower = OBJParser(await (await fetch("./flower.obj")).text(), {
+        "flower": await (await fetch("./flower.mtl")).text()
+    })
+
+    await GameEngine.Renderer.SetMaterials(flower.materials)
+    await GameEngine.Renderer.SetTriangles(flower.triangles, true)*/
 
     /*let triangle1 = new Triangle()
     triangle1.a = new Vector3(-1.0, -1.0, 5.0)

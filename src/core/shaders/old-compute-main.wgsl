@@ -54,10 +54,8 @@ struct InputMapData {
 
 struct Pixel {
     noisy_color: vec4<f32>,
-    albedo: vec3<f32>,
     normal: vec3<f32>,
     velocity: vec2<f32>,
-    depth: f32,
     //depth: f32,
     //albedo: array<u32, 3>,
 }
@@ -143,7 +141,4 @@ fn computeMain(
     //temporalBuffer[index] = pixelData.temporalData;
 
     textureStore(image_color_texture, global_invocation_id.xy, pixelData.pixel.noisy_color);
-    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.albedo, 0));
-    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.normal, 0));
-    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.depth, 0, 0, 0));
 }

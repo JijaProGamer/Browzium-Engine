@@ -1,4 +1,4 @@
-fn hash(x: u32) -> u32 {
+/*fn hash(x: u32) -> u32 {
     var output: u32 = x;
 
     output = output + (output << 10u);
@@ -19,7 +19,7 @@ fn floatConstruct(m: u32) -> f32 {
 
     let f: f32 = bitcast<f32>(mBits);
     return f - 1.0;
-}
+}*/
 
 struct Random3Vec3Output {
     output: vec3<f32>,
@@ -34,10 +34,9 @@ struct Random3Vec2Output {
 fn randomVec2(seed: f32, vec: vec2<f32>) -> f32 {
     var vector = vec3<f32>(seed, vec);
 
-    vector = fract(vector * 0.75318531);
-    vector += dot(vector, vector.zyx + .4143);
-
-    return fract((vector.x * .2144 + vector.y / .19153) * vector.z / (vector.x*vector.x));
+    vector = fract(vector * 0.14319031);
+    vector += dot(vector, vector.zyx + 3.3252653);
+    return fract((vector.x + vector.y) * vector.z) - 0.5;
 }
 
 fn random2Vec2(seed: f32, vec: vec2<f32>) -> Random3Vec2Output {

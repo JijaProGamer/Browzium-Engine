@@ -10,6 +10,7 @@ class Material {
     index_of_refraction = 0
     illumination_mode = 0
     reflectance = 0
+    emittance = 0
 }
 
 export default Material;

@@ -8,7 +8,7 @@ struct InputGlobalData {
     padding1: f32,
     CameraToWorldMatrix: mat4x4<f32>,
 
-    antialias: f32,
+    tonemapmode: f32,
     gammacorrect: f32,
 };
 
@@ -41,7 +41,7 @@ struct Material {
     index_of_refraction: f32,
 
     reflectance: f32,
-    padding2: f32,
+    emittance: f32,
 };
 
 struct InputMapData {
@@ -54,8 +54,10 @@ struct InputMapData {
 
 struct Pixel {
     noisy_color: vec4<f32>,
+    albedo: vec3<f32>,
     normal: vec3<f32>,
     velocity: vec2<f32>,
+    depth: f32,
     //depth: f32,
     //albedo: array<u32, 3>,
 }
@@ -97,14 +99,24 @@ struct OutputTextureData {
 
 
 
-@group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba8unorm, write>;
+@group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(1) var image_color_texture_read: texture_2d<f32>;
 
-@group(2) @binding(2) var image_history: texture_storage_2d<rgba8unorm, write>;
-@group(2) @binding(3) var image_history_read: texture_2d<f32>;
-@group(2) @binding(4) var<storage, read> image_history_data: OutputTextureData;
+@group(2) @binding(2) var image_normal_texture: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(3) var image_normal_texture_read: texture_2d<f32>;
 
-@group(2) @binding(5) var<storage, read_write> temporalBuffer: array<TemportalData>;
+@group(2) @binding(4) var image_depth_texture: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(5) var image_depth_texture_read: texture_2d<f32>;
+
+@group(2) @binding(6) var image_albedo_texture: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(7) var image_albedo_texture_read: texture_2d<f32>;
+
+@group(3) @binding(0) var image_history: texture_storage_2d<rgba16float, write>;
+@group(3) @binding(1) var image_history_read: texture_2d<f32>;
+
+@group(3) @binding(2) var<storage, read> image_history_data: OutputTextureData;
+
+@group(3) @binding(3) var<storage, read_write> temporalBuffer: array<TemportalData>;
 
 //@group(2) @binding(0) var<storage, read_write> imageBuffer: array<Pixel>;
 ///@group(2) @binding(1) var image_color_sampler: sampler;
@@ -244,19 +256,21 @@ struct OctreeHitResult {
     treePart: TreePart,
 }
 
-fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
-    /*if(!is_triangle_facing_camera(tri, ray_direction)){
-        return -1;
-    }*/
+const errorAmount = 0.000001;
 
+fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var result: HitResult;
+
+    if(!is_triangle_facing_camera(tri, ray_direction)){
+        return result;
+    }
 
     let edge1 = tri.b - tri.a;
     let edge2 = tri.c - tri.a;
     let h = cross(ray_direction, edge2);
     let a = dot(edge1, h);
 
-    if (a > -0.00001 && a < 0.00001) {
+    if (a > -errorAmount && a < errorAmount) {
         return result;
     }
 
@@ -277,7 +291,7 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 
     let t = f * dot(edge2, q);
 
-    if(t < 0.01){
+    if(t < errorAmount){
         return result;
     }
 
@@ -290,130 +304,25 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 }
 
 fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> bool {
-    let invDir = vec3<f32>(1.0 / ray_direction.x, 1.0 / ray_direction.y, 1.0 / ray_direction.z);
+    var half_extent: vec3<f32> = vec3<f32>(box.halfSize, box.halfSize, box.halfSize);
+    var box_min: vec3<f32> = box.center - half_extent;
+    var box_max: vec3<f32> = box.center + half_extent;
 
-    let t1 = (box.center.x - box.halfSize - ray_origin.x) * invDir.x;
-    let t2 = (box.center.x + box.halfSize - ray_origin.x) * invDir.x;
-    let t3 = (box.center.y - box.halfSize - ray_origin.y) * invDir.y;
-    let t4 = (box.center.y + box.halfSize - ray_origin.y) * invDir.y;
-    let t5 = (box.center.z - box.halfSize - ray_origin.z) * invDir.z;
-    let t6 = (box.center.z + box.halfSize - ray_origin.z) * invDir.z;
+    var t_min: vec3<f32> = (box_min - ray_origin) / ray_direction;
+    var t_max: vec3<f32> = (box_max - ray_origin) / ray_direction;
 
-    let tmin = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
-    let tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+    var t1: vec3<f32> = min(t_min, t_max);
+    var t2: vec3<f32> = max(t_min, t_max);
 
-    return tmax >= max(0.0, tmin);
-}
+    var t_enter: f32 = max(max(t1.x, t1.y), t1.z);
+    var t_exit: f32 = min(min(t2.x, t2.y), t2.z);
 
-/*fn get_octree_hit(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> OctreeHitResult {
-    var result: OctreeHitResult;
-    var currentCheck = box;
-
-    while(true){
-        if(currentCheck.children[0] == -1){
-            break;
-        }
-
-        result.hit = true;
-        result.treePart = currentCheck;
-
-        //break;
-        for(var i = 0; i < 8; i++){
-            let childIndex = currentCheck.children[i];
-            let child = inputTreeParts[u32(childIndex)];
-
-            if(hit_octree(ray_origin, ray_direction, child)){
-                currentCheck = child;
-                //break;
-            }
-        }
-    }
-
-    return result;
-}*/
-
-fn get_octree_hit(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> OctreeHitResult {
-    var result: OctreeHitResult;
-    var stack: array<TreePart, 64>;
-    var stackIndex: i32 = 0;
-
-    stack[stackIndex] = box;
-    stackIndex++;
-
-    while (stackIndex > 0) {
-        stackIndex--;
-        let currentBox = stack[stackIndex];
-
-        let hit = hit_octree(ray_origin, ray_direction, currentBox);
-
-        if (hit) {
-            result.hit = true;
-            result.treePart = currentBox;
-
-            if (currentBox.children[0] == -1.0) {
-                return result;
-            }
-
-            for (var i: i32 = 0; i < 8; i = i + 1) {
-                let childIndex = currentBox.children[i];
-                let childNode = inputTreeParts[i32(childIndex)];
-
-                if (hit_octree(ray_origin, ray_direction, childNode)) {
-                    stack[stackIndex] = childNode;
-                    stackIndex++;
-                }
-            }
-        }
-    }
-
-    return result;
+    return t_enter <= t_exit;
 }
 
 fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
-
-    /*let octreeHit = get_octree_hit(ray_origin, ray_direction, inputTreeParts[0]);
-
-    if (!octreeHit.hit) {
-        return result;
-    }
-
-    for (var i: i32 = 0; i < 16; i = i + 1) {
-        let triIndex = octreeHit.treePart.triangles[i];
-        if (triIndex == -1) {
-            break;
-        }
-
-        let currentTriangle = inputMap.triangles[i32(triIndex)];
-        let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
-
-        if (current_result.hit && current_result.depth < depth) {
-            result = current_result;
-            depth = result.depth;
-            result.material = inputMaterials[i32(currentTriangle.material_index)];
-        }
-    }*/
-
-    /*for(var j = 0; j < 17; j++){
-        let octreeHit = inputTreeParts[j];
-        
-        for(var i = 0; i < 16; i++){
-            let triIndex = octreeHit.triangles[i];
-            if (triIndex == -1) {
-                break;
-            }
-
-            let currentTriangle = inputMap.triangles[i32(triIndex)];
-            let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
-
-            if (current_result.hit && current_result.depth < depth) {
-                result = current_result;
-                depth = result.depth;
-                result.material = inputMaterials[i32(currentTriangle.material_index)];
-            }
-        }
-    }*/
 
     for (var i: f32 = 0; i < inputMap.triangle_count; i = i + 1) {
         let currentTriangle = inputMap.triangles[i32(i)];
@@ -429,6 +338,61 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
     return result;
 }
 
+/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+    var depth: f32 = 9999999;
+    var result: HitResult;
+
+    var stack: array<TreePart, 64>;
+    var stackIndex: i32 = 0;
+
+    stack[stackIndex] = inputTreeParts[0];
+    stackIndex++;
+
+    if (!hit_octree(ray_origin, ray_direction, stack[0])) {
+        return result;
+    }
+
+    while (stackIndex > 0) {
+        stackIndex--;
+        let currentBox = stack[stackIndex];
+
+        let hit = hit_octree(ray_origin, ray_direction, currentBox);
+
+        if (hit) {
+            if (currentBox.children[0] == -1.0) {
+                for (var i: f32 = 0; i < 16; i = i + 1) {
+                    let triIndex = i32(currentBox.triangles[i32(i)]);
+                    if(triIndex == -1) { break; }
+
+                    let currentTriangle = inputMap.triangles[triIndex];
+                    let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
+
+                    if (current_result.hit && current_result.depth < depth) {
+                        result = current_result;
+                        depth = result.depth;
+                        result.material = inputMaterials[i32(currentTriangle.material_index)];
+                    }
+                }
+
+                continue;
+            }
+
+            for (var i: i32 = 0; i < 8; i = i + 1) {
+                let childIndex = currentBox.children[i];
+                let childNode = inputTreeParts[i32(childIndex)];
+
+                if (hit_octree(ray_origin, ray_direction, childNode)) {
+                    stack[stackIndex] = childNode;
+                    stackIndex++;
+                }
+            }
+        }
+    }
+
+
+    return result;
+}*/
+
 fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
     let dotProductA = dot(tri.na, ray_direction);
     let dotProductB = dot(tri.nb, ray_direction);
@@ -436,118 +400,300 @@ fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
     
     return dotProductA < 0.0 && dotProductB < 0.0 && dotProductC < 0.0;
 }
+fn hash(x: u32) -> u32 {
+    var output: u32 = x;
+
+    output = output + (output << 10u);
+    output = output ^ (output >> 6u);
+    output = output + (output << 3u);
+    output = output ^ (output >> 11u);
+    output = output + (output << 15u);
+    
+    return output;
+}
+
+fn floatConstruct(m: u32) -> f32 {
+    let ieeeMantissa: u32 = 0x007FFFFFu;
+    let ieeeOne: u32 = 0x3F800000u; 
+
+    var mBits: u32 = m & ieeeMantissa;
+    mBits = mBits | ieeeOne;
+
+    let f: f32 = bitcast<f32>(mBits);
+    return f - 1.0;
+}
+
+struct Random3Vec3Output {
+    output: vec3<f32>,
+    seed: f32
+};
+
+struct Random3Vec2Output {
+    output: vec2<f32>,
+    seed: f32
+};
+
 fn randomVec2(seed: f32, vec: vec2<f32>) -> f32 {
     var vector = vec3<f32>(seed, vec);
 
-    vector  = fract(vector * .1031);
-    vector += dot(vector, vector.zyx + 31.32);
-    return fract((vector.x + vector.y) * vector.z);
+    vector = fract(vector * 0.75318531);
+    vector += dot(vector, vector.zyx + .4143);
+
+    return fract((vector.x * .2144 + vector.y / .19153) * vector.z / (vector.x*vector.x));
 }
 
-struct random3Vec3Output {
-    output: vec3<f32>,
-    seed: f32
-}
-
-struct random3Vec2Output {
-    output: vec2<f32>,
-    seed: f32
-}
-
-fn random2Vec2(seed: f32, vec: vec2<f32>) -> random3Vec2Output {
+fn random2Vec2(seed: f32, vec: vec2<f32>) -> Random3Vec2Output {
     var vector = vec3<f32>(seed, vec);
-    var output: random3Vec2Output;
+    var output: Random3Vec2Output;
 
-	vector = fract(vector * vec3(.1031, .1030, .0973));
-    vector += dot(vector, vector.yzx+33.33);
-    var outputVector = fract((vector.xx+vector.yz)*vector.zy);
+    vector = fract(vector * vec3<f32>(0.1031, 0.1030, 0.0973));
+    vector += dot(vector, vector.yzx + 33.33);
+    var outputVector = fract((vector.xx + vector.yz) * vector.zy) - vec2<f32>(0.5);
 
-    output.seed = pow(outputVector.y * outputVector.x / .43145 * seed, .141592);
+    output.seed = outputVector.y + outputVector.x / .43145 + seed * 2.634145;
     output.output = outputVector;
 
     return output;
 }
 
-fn random3Vec3(seed: f32, vec: vec3<f32>) -> random3Vec3Output {
+fn random3Vec3(seed: f32, vec: vec3<f32>) -> Random3Vec3Output {
     var vector = vec4<f32>(seed, vec);
-    var output: random3Vec3Output;
+    var output: Random3Vec3Output;
 
-	vector = fract(vector  * vec4(.1031, .1030, 0.0973, .1099));
-    vector += dot(vector, vector.wzxy+33.33);
-    vector = fract((vector.xxyz+vector.yzzw)*vector.zywx);
+    vector = fract(vector * vec4<f32>(.9898, 78.233, 43.094, 94.457));
+    vector += dot(vector, vector.wzxy + 33.33);
+    vector = fract((vector.xxyz + vector.yzzw) * vector.zywx) - vec4<f32>(0.5);
 
-    output.seed = pow(vector.y * seed, .141592);
+    output.seed = vector.y * seed * .65376464 + vector.x - vector.z * vector.w;
     output.output = vector.wxz;
 
     return output;
 }
 
-fn randomPoint(seed: f32, position: vec3<f32>) -> random3Vec3Output{
+fn randomPoint(seed: f32, position: vec3<f32>) -> Random3Vec3Output {
     var output = random3Vec3(seed, position);
     output.output = normalize(output.output);
-
     return output;
 }
 
-fn randomPoint2(seed: f32, position: vec2<f32>) -> random3Vec2Output{
+fn randomPoint2(seed: f32, position: vec2<f32>) -> Random3Vec2Output {
     var output = random2Vec2(seed, position);
     output.output = normalize(output.output);
-
     return output;
 }
 
-fn randomPointInHemisphere(seed: f32, normal: vec3<f32>, position: vec3<f32>) -> random3Vec3Output {
-    /*var randomVec: vec3<f32>;
-    var randomiser: f32 = 1;
+fn randomPointInHemisphere(seed: f32, normal: vec3<f32>, position: vec3<f32>) -> Random3Vec3Output {
+    var randomVec: Random3Vec3Output;
+    var randomiser: f32 = seed;
+    var tries: i32 = 0;
 
-    while(true){
-        randomVec = random3Vec3(seed * randomiser, position);
-        randomiser *= 3.141592;
+    while (true) {
+        randomVec = randomPoint(randomiser, position);
+        randomiser = randomVec.seed;
+        tries += 1;
 
-        if(length(randomVec) < 1){
-            randomVec = normalize(randomVec);
+        if (length(randomVec.output) <= 1.0 || tries > 10) {
+            randomVec.output = normalize(randomVec.output);
+            randomVec.seed = randomiser;
             break;
         }
-    }*/
+    }
 
-    var randomVec = randomPoint(seed, position);
-
-    if(dot(randomVec.output, normal) < 0){
+    if (dot(randomVec.output, normal) < 0.0) {
         randomVec.output = -randomVec.output;
     }
 
     return randomVec;
 }
 
+
 fn NoHit(
     direction: vec3<f32>, 
     start: vec3<f32>
-) -> vec4<f32> {
+) -> vec3<f32> {
     let a = 0.5 * (direction.y + 1.0);
 
     let White = vec3<f32>(0.8, 0.8, 0.8);
     let Blue = vec3<f32>(0.15, 0.3, 0.9);
 
-    return vec4<f32>((0.7-a) * White + (a + 0.3) * Blue, 1);
+    return (0.7-a) * White + (a + 0.3) * Blue;
 }
 
-fn Hit(
-    intersection: HitResult,
-) -> vec4<f32>{
-    var output: vec3<f32>;
-    /*let distance = min(0.35, depth / 25);
 
-    output.r = intersection.material.color.x - distance;
-    output.g = intersection.material.color.y - distance;
-    output.b = intersection.material.color.z - distance;
+const maxDepth: i32 = 8;
 
-    return output;*/
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+    var output: Pixel;
 
-    output = intersection.material.color;
+    var realDirection = direction;
+    var realStart = start;
+    var accumulatedColor = vec3<f32>(1);
+    var pixelHash = rawPixelHash;
+    var hit_light = false;
+    var depth: i32 = 0;
 
-    return vec4<f32>(output, 1);
+    for (; depth <= maxDepth; depth = depth + 1) {
+        if (depth >= maxDepth) {
+            break;
+        }
+
+        var intersection = get_ray_intersection(realStart, realDirection);
+        var material = intersection.material;
+        let emittance = material.color * material.emittance;
+
+        if(depth == 0){
+            if (!intersection.hit) { intersection.depth = 999999; intersection.normal = -realDirection; material.color = NoHit(realDirection, realStart); }
+
+            output.normal = intersection.normal;
+            output.depth = intersection.depth;
+            output.albedo = material.color;
+        }
+
+        if (!intersection.hit) {
+            hit_light = true;
+            accumulatedColor *= NoHit(realDirection, realStart);
+            break;
+        }
+
+        let newDirection = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+        pixelHash = newDirection.seed;
+
+        let p = 1.0 / (2.0 * 3.141592653589);
+        let cos_theta = dot(newDirection.output, intersection.normal);
+        
+        let BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
+
+        accumulatedColor *= emittance + (BRDF * cos_theta / p);
+
+        if(material.emittance > 0){
+            hit_light = true;
+            break;
+        }
+
+        realStart = intersection.position;
+        realDirection = newDirection.output;
+    }
+
+    //if(true){
+    if(hit_light){
+        output.noisy_color = vec4<f32>(accumulatedColor, 1);
+    }
+
+    return output;
 }
 
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+    var output: Pixel;
+
+    var realDirection = direction;
+    var realStart = start;
+    var accumulatedColor: vec3<f32> = vec3<f32>(0.0);
+    var pixelHash = rawPixelHash;
+    var hit_light = false;
+    var depth: i32 = 0;
+
+    for (; depth <= maxDepth; depth = depth + 1) {
+        if (depth >= maxDepth) {
+            break;
+        }
+
+        var intersection = get_ray_intersection(realStart, realDirection);
+
+        if (!intersection.hit) {
+            hit_light = true;
+            accumulatedColor = NoHit(realDirection, realStart);
+            break;
+        }
+
+        let material = intersection.material;
+        let emittance = material.color * material.emittance;
+
+        let newDirection = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+        pixelHash = newDirection.seed;
+
+        let p = 1.0 / (2.0 * 3.141592653589);
+        let cos_theta = dot(newDirection.output, intersection.normal);
+        let BRDF = ((1 - material.emittance) * material.color) / 3.141592653589;
+
+        accumulatedColor = accumulatedColor + emittance + (BRDF * accumulatedColor * cos_theta / p);
+
+        if(material.emittance > 0){
+            hit_light = true;
+            break;
+        }
+
+        realStart = intersection.position;
+        realDirection = newDirection.output;
+        depth = depth + 1;
+    }
+
+    if(hit_light){
+        output.noisy_color = vec4<f32>(accumulatedColor / f32(depth), 1);
+    }
+
+    //output.noisy_color = vec4<f32>(randomVec2(pixelHash, pixel), randomVec2(pixelHash, pixel), randomVec2(pixelHash, pixel), 1);
+
+    return output;
+}*/
+
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+    var output: Pixel;
+
+    var pixelHash = rawPixelHash;
+    var intersection = get_ray_intersection(start, direction);
+    var accumulated_radiance: vec3<f32>;
+
+    if (intersection.hit) {
+        let BRDF1 = dot(direction, intersection.normal);
+        accumulated_radiance = intersection.material.color * BRDF1 + intersection.material.color * intersection.material.emittance;
+
+        var tries = 1;
+        var hit_light = false;
+
+        while (tries < maxDepth) {
+            if(intersection.material.emittance > 0){
+                accumulated_radiance += intersection.material.color * intersection.material.emittance;
+                hit_light = true;
+                break;
+            }
+
+            var direction_modifier = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+            pixelHash = direction_modifier.seed;
+            var scattered_direction = direction_modifier.output;
+
+            var new_intersection = get_ray_intersection(intersection.position, scattered_direction);
+
+            if (!new_intersection.hit) {
+                accumulated_radiance += NoHit(scattered_direction, intersection.position).xyz;
+                hit_light = true;
+                break;
+            } else {
+                let BRDF = dot(scattered_direction, new_intersection.normal);
+                let incoming_light = intersection.material.color;
+
+                accumulated_radiance += BRDF * incoming_light;
+            }
+
+            intersection = new_intersection;
+            tries++;
+        }
+
+
+        //if(true){
+        if(hit_light){
+            //output.noisy_color = vec4<f32>(accumulated_radiance, 1);
+            output.noisy_color = vec4<f32>(accumulated_radiance / f32(tries), 1);
+        } else {
+            output.noisy_color = vec4<f32>(0, 0, 0, 1);
+        }
+    } else {
+        output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
+    }
+
+    return output;
+}*/
+
+/*
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
@@ -568,7 +714,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 
     return output;*/
 
-    /*var intersection = get_ray_intersection(start, direction);
+    var intersection = get_ray_intersection(start, direction);
     var depth = intersection.depth;
 
     while(intersection.material.reflectance > 0){
@@ -584,44 +730,12 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         output.noisy_color = vec4<f32>(Hit(intersection, depth), 1);
     } else {
         output.noisy_color = NoHit(direction, start);
-    }*/
-
-    var pixelHash = rawPixelHash;
-    var intersection = get_ray_intersection(start, direction);
-    var lastDirection = direction;
-    var tries = 1;
-
-    if(intersection.hit){
-        //output.noisy_color = Hit(intersection);
-        //output.noisy_color = vec4<f32>(randomPointInHemisphere(randomVec2(inputData.frame * 3.141592, vec2<f32>(pixel)) , intersection.normal, intersection.position), 1);
-
-        while(tries <= 15){
-            //let reflectedDirection = lastDirection - 2.0 * dot(lastDirection, intersection.normal) * intersection.normal;
-
-            var direction_modifier = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
-            pixelHash = direction_modifier.seed;
-
-            var scattered_direction = direction_modifier.output;
-            //var scattered_direction = normalize(reflectedDirection * intersection.material.reflectance + direction_modifier.output * (1 - intersection.material.reflectance));
-            lastDirection = scattered_direction;
-            intersection = get_ray_intersection(intersection.position, scattered_direction);
-
-            if(!intersection.hit){
-                output.noisy_color = output.noisy_color + NoHit(scattered_direction, intersection.position);
-                break;
-            }
-
-            output.noisy_color = output.noisy_color + Hit(intersection);
-            tries ++;
-        }
-
-        output.noisy_color /= f32(tries);
-    } else {
-        output.noisy_color = NoHit(direction, start);
     }
 
     return output;
 }
+
+*/
 
 fn getTemporalData(
     pixel: vec2<f32>
@@ -663,12 +777,12 @@ fn calculateTemporalData(
 fn calculatePixelColor(
     pixel: vec2<f32>
 ) -> TraceOutput {
-    var pixelHash = randomVec2(image_history_data.totalFrames * 3.141592, pixel);
+    var pixelHash = randomVec2(image_history_data.totalFrames, pixel);
 
     var pixelModifier = randomPoint2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
-    var realPixel = pixel + pixelModifier.output;
+    var realPixel = pixel + pixelModifier.output / 2;
 
     let direction = calculatePixelDirection(realPixel);
     let start = inputData.CameraPosition;
@@ -676,7 +790,7 @@ fn calculatePixelColor(
     var output: TraceOutput;
 
     //let temporalData = getTemporalData(realPixel);
-    var traceOutput = RunTracer(direction, start, realPixel, pixelHash);
+    var traceOutput = RunTracer(direction, start, pixel, pixelHash);
 
     //traceOutput.velocity = (temporalData.rayDirection - direction).xy;
 
@@ -710,28 +824,14 @@ fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
     
     return out;
 }
-const luma = vec4<f32>(0.299, 0.587, 0.114, 0);
+const ACES_a = 2.51;
+const ACES_b = 0.03;
+const ACES_c = 2.43;
+const ACES_d = 0.59;
+const ACES_e = 0.14;
 
-fn applyFXAA(centerColor: vec4<f32>, fragCoord: vec2<i32>) -> vec4<f32> {
-    let lumaCenter = dot(centerColor, luma);
-
-    let lumaTop = dot(textureLoad(image_color_texture_read, fragCoord + vec2(0, -1), 0), luma);
-    let lumaBottom = dot(textureLoad(image_color_texture_read, fragCoord + vec2(0, 1), 0), luma);
-    let lumaLeft = dot(textureLoad(image_color_texture_read, fragCoord + vec2(-1, 0), 0), luma);
-    let lumaRight = dot(textureLoad(image_color_texture_read, fragCoord + vec2(1, 0), 0), luma);
-
-    let lumaMax = max(max(max(abs(lumaCenter - lumaTop), abs(lumaCenter - lumaBottom)),
-                         abs(lumaCenter - lumaLeft)),
-                     abs(lumaCenter - lumaRight));
-
-    let blendFactor = clamp(1.0 / ((lumaMax * lumaMax) + 0.0001), 0.0, 1.0);
-
-    return mix(centerColor, (
-        textureLoad(image_color_texture_read, fragCoord + vec2(0, -1), 0) +
-        textureLoad(image_color_texture_read, fragCoord + vec2(0, 1), 0) +
-        textureLoad(image_color_texture_read, fragCoord + vec2(-1, 0), 0) +
-        textureLoad(image_color_texture_read, fragCoord + vec2(1, 0), 0)
-    ) * 0.25, blendFactor);
+fn applyACES(x: vec3<f32>) -> vec3<f32> {
+    return clamp((x * (ACES_a * x + ACES_b)) / (x * (ACES_c * x + ACES_d) + ACES_e), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 @fragment 
@@ -748,21 +848,42 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     }*/
 
     //let index = pixelToIndex(pixelPosition);
+
     var pixel = textureLoad(image_color_texture_read, pixelPosition, 0);
+    //var pixel = textureLoad(image_albedo_texture_read, pixelPosition, 0);
+
     //var pixel = imageBuffer[index].noisy_color;
     //var temporalData = temporalBuffer[index];
+
+    /*if(image_history_data.staticFrames == 0){
+        textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
+    } else {
+        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
+
+        //pixel = (pixel + historyPixel) / 2;
+        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.01, 1));
+        //pixel = mix(historyPixel, pixel, 1 / image_history_data.staticFrames);
+        textureStore(image_history, pixelPosition, pixel);
+    }*/
 
     if(image_history_data.staticFrames == 0){
         textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
     } else {
+        let w = pixel.w;
+
         let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
-        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.05, 1));
-        textureStore(image_history, pixelPosition, pixel);
+        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.025, 1)); 
+
+        if(w > 0){
+            textureStore(image_history, pixelPosition, pixel);
+        }
+
+        pixel.w = 1;
     }
 
-    /*if(inputData.antialias == 1){
-        pixel = applyFXAA(pixel, pixelPosition);
-    }*/
+    if(inputData.tonemapmode == 1){
+        pixel = vec4<f32>(applyACES(pixel.xyz), pixel.w);
+    }
 
     if(inputData.gammacorrect == 1){
         let oldTransparency = pixel.w;
@@ -793,4 +914,7 @@ fn computeMain(
     //temporalBuffer[index] = pixelData.temporalData;
 
     textureStore(image_color_texture, global_invocation_id.xy, pixelData.pixel.noisy_color);
+    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.albedo, 0));
+    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.normal, 0));
+    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.depth, 0, 0, 0));
 }
