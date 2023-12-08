@@ -24,7 +24,7 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
         let w = pixel.w;
 
         let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
-        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.05, 1)); 
+        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.002, 1));
 
         if(w > 0){
             textureStore(image_history, pixelPosition, pixel);
