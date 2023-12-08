@@ -144,26 +144,12 @@
     let rotationX = 0;
     let rotationY = 0;
 
-    /*function updateOrientation(e) {
-        rotationX += (e.movementX / PPI)
-        rotationY += (e.movementY / PPI)
-
-        rotationX = Math.max(-1, Math.min(rotationX, 1))
-        rotationY = Math.max(-1, Math.min(rotationY, 1))
-
-        cameraRotation.x = rotationX
-        cameraRotation.y = rotationY
-        cameraRotation.z = -1;
-
-        GameEngine.Camera.SetOrientation(cameraRotation)
-    }*/
-
     function updateOrientation(e) {
         rotationX -= (e.movementX / PPI)
         rotationY -= (e.movementY / PPI)
 
         //rotationX = Math.max(-1, Math.min(rotationX, 1))
-        rotationY = Math.max(-0.65, Math.min(rotationY, 0.65))
+        rotationY = Math.max(-0.45, Math.min(rotationY, 0.35))
 
         cameraRotation.x = rotationX
         cameraRotation.y = rotationY
@@ -173,24 +159,6 @@
 
         GameEngine.Camera.SetOrientationEuler(orientation)
     }
-
-    /*function updateOrientation(e) {
-        rotationX += (e.movementX / PPI);
-        rotationY += (e.movementY / PPI);
-
-        rotationX = Math.max(-1, Math.min(rotationX, 1));
-        rotationY = Math.max(-1, Math.min(rotationY, 1));
-
-        let forward = new Vector3(0, 0, -1);
-
-        let rotationMatrixX = Matrix.rotationAxis(new Vector3(1, 0, 0), rotationY);
-        let rotationMatrixY = Matrix.rotationAxis(new Vector3(0, 1, 0), rotationX);
-        let rotationMatrix = rotationMatrixX.multiply(rotationMatrixY);
-
-        cameraRotation = rotationMatrix.multiplyVector(forward);
-
-        GameEngine.Camera.SetOrientation(cameraRotation);
-    }*/
 
     // Camera position
 
@@ -203,7 +171,11 @@
 
     function MoveCameraPosition() {
         let moveDirection = new Vector3(0, 0, 0)
-        let right = new Vector3(0, 1, 0).cross(cameraRotation).normalize();
+        let right = new Vector3(
+            Math.sin((((rotationX + 1) / 2 * 360)  % 360) * (Math.PI / 180)),
+            -Math.cos((((rotationY + 1) / 2 * 360)  % 360) * (Math.PI / 180)),
+            Math.sin((((rotationX + 1) / 2 * 360)  % 360) * (Math.PI / 180)),
+        ).normalize();
 
         if (moveModes.up) {
             moveDirection.add(new Vector3(0, 1 * cameraSpeed, 0));
