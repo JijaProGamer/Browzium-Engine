@@ -170,12 +170,8 @@
     GameEngine.Camera.SetPosition(cameraPosition)
 
     function MoveCameraPosition() {
-        let moveDirection = new Vector3(0, 0, 0)
-        let right = new Vector3(
-            Math.sin((((rotationX + 1) / 2 * 360)  % 360) * (Math.PI / 180)),
-            -Math.cos((((rotationY + 1) / 2 * 360)  % 360) * (Math.PI / 180)),
-            Math.sin((((rotationX + 1) / 2 * 360)  % 360) * (Math.PI / 180)),
-        ).normalize();
+        let moveDirection = new Vector3(0, 0, 0);
+        let right = GameEngine.Camera.right;
 
         if (moveModes.up) {
             moveDirection.add(new Vector3(0, 1 * cameraSpeed, 0));
@@ -194,11 +190,11 @@
         }
 
         if (moveModes.forward) {
-            moveDirection.add(cameraRotation.copy().multiplyScalar(-cameraSpeed));
+            moveDirection.add(GameEngine.Camera.forward.copy().multiplyScalar(-cameraSpeed));
         }
 
         if (moveModes.back) {
-            moveDirection.add(cameraRotation.copy().multiplyScalar(cameraSpeed));
+            moveDirection.add(GameEngine.Camera.forward.copy().multiplyScalar(cameraSpeed));
         }
 
         cameraPosition.add(moveDirection)

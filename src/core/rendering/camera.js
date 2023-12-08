@@ -12,15 +12,19 @@ class CameraModel {
 
     wasCameraUpdated = false;
 
-    ComputeCameraToWorldMatrix() {
-        let forward = this.Orientation.multiplyVector(new Vector3(0, 0, -1)).normalize();
-        let right = globalUpVector.cross(forward).normalize();
-        let up = forward.cross(right).normalize();
+    forward = new Vector3(0, 0, 0);
+    right = new Vector3(0, 0, 0);
+    up = new Vector3(0, 0, 0);
 
-        this.CameraToWorldMatrix.set(0, 0, right.x);   this.CameraToWorldMatrix.set(0, 1, right.y);   this.CameraToWorldMatrix.set(0, 2, right.z);   this.CameraToWorldMatrix.set(0, 3, 0);
-        this.CameraToWorldMatrix.set(1, 0, up.x);      this.CameraToWorldMatrix.set(1, 1, up.y);      this.CameraToWorldMatrix.set(1, 2, up.z);      this.CameraToWorldMatrix.set(1, 3, 0);
-        this.CameraToWorldMatrix.set(2, 0, forward.x); this.CameraToWorldMatrix.set(2, 1, forward.y); this.CameraToWorldMatrix.set(2, 2, forward.z); this.CameraToWorldMatrix.set(2, 3, 0);
-        this.CameraToWorldMatrix.set(3, 0, 0);         this.CameraToWorldMatrix.set(3, 1, 0);         this.CameraToWorldMatrix.set(3, 2, 0);         this.CameraToWorldMatrix.set(3, 3, 1);
+    ComputeCameraToWorldMatrix() {
+        this.forward = this.Orientation.multiplyVector(new Vector3(0, 0, -1)).normalize();
+        this.right = globalUpVector.cross(this.forward).normalize();
+        this.up = this.forward.cross(this.right).normalize();
+
+        this.CameraToWorldMatrix.set(0, 0, this.right.x);   this.CameraToWorldMatrix.set(0, 1, this.right.y);   this.CameraToWorldMatrix.set(0, 2, this.right.z);   this.CameraToWorldMatrix.set(0, 3, 0);
+        this.CameraToWorldMatrix.set(1, 0, this.up.x);      this.CameraToWorldMatrix.set(1, 1, this.up.y);      this.CameraToWorldMatrix.set(1, 2, this.up.z);      this.CameraToWorldMatrix.set(1, 3, 0);
+        this.CameraToWorldMatrix.set(2, 0, this.forward.x); this.CameraToWorldMatrix.set(2, 1, this.forward.y); this.CameraToWorldMatrix.set(2, 2, this.forward.z); this.CameraToWorldMatrix.set(2, 3, 0);
+        this.CameraToWorldMatrix.set(3, 0, 0);              this.CameraToWorldMatrix.set(3, 1,      0);         this.CameraToWorldMatrix.set(3, 2, 0);              this.CameraToWorldMatrix.set(3, 3, 1);
     }
 
     SetOrientationMatrix(matrix){
