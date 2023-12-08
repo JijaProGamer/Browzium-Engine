@@ -18,6 +18,13 @@ class Vector4 {
         this.w = w;
     }
 
+    get(position){
+        if(position == 0) return this.x;
+        if(position == 1) return this.y;
+        if(position == 2) return this.z;
+        if(position == 3) return this.w;
+    }
+
     copy() {
         return new Vector4(this.x, this.y, this.z, this.w);
     }

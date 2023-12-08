@@ -15,6 +15,12 @@ class Vector3 {
         this.z = z;
     }
 
+    get(position){
+        if(position == 0) return this.x;
+        if(position == 1) return this.y;
+        if(position == 2) return this.z;
+    }
+
     copy() {
         return new Vector3(this.x, this.y, this.z);
     }

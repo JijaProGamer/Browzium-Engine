@@ -31,7 +31,7 @@ function parseMAT(mat) {
             case 'Ns':
                 result[lastMaterial].specularWeight = parseFloat(parts[0])
                 break;
-            case 'Kr':
+            case 'Re':
                 result[lastMaterial].reflectance = parseFloat(parts[0])
                 break;
             case 'Tr':

@@ -1,3 +1,21 @@
+import Vector2 from "./Vector2";
+import Vector3 from "./Vector3";
+import Vector4 from "./Vector4";
+
+function getVectorType(vector){
+    if("w" in vector) return 4;
+    if("z" in vector) return 3;
+    if("y" in vector) return 2;
+
+    return -1
+}
+
+function toVector(array){
+    if(array.length == 4) {return new Vector4(...array)}
+    if(array.length == 3) {return new Vector3(...array)}
+    if(array.length == 2) {return new Vector2(...array)}
+}
+
 class Matrix {
     rows;
     cols;
@@ -73,8 +91,47 @@ class Matrix {
         return this;
     }
 
+    multiply(matrix) {
+        if (this.cols !== matrix.cols || this.rows !== matrix.cols) {
+            throw new Error("Matrix dimensions are not compatible for multiplication.");
+        }
+    
+        let result = new Matrix(this.rows, this.cols);
+    
+        for (let i = 0; i < this.rows; i++) {
+            for (let j = 0; j < this.cols; j++) {
+
+                let sum = 0;
+
+                for (let k = 0; k < this.cols; k++) {
+                    sum += this.get(i, k) * matrix.get(k, j);
+                }
+
+                result.set(i, j, sum);
+            }
+        }
+    
+        return result;
+    }    
+
+    multiplyVector(vector) {
+        if (this.cols != getVectorType(vector) || this.rows != getVectorType(vector)) {
+            throw new Error("Matrix and vector dimensions are not compatible for multiplication.");
+        }
+
+        let result = new Array(this.rows).fill(0);
+
+        for (let i = 0; i < this.rows; i++) {
+            for (let j = 0; j < this.cols; j++) {
+                result[i] += this.get(i, j) * vector.get(j);
+            }
+        }
+
+        return toVector(result);
+    }
+
     inverse(){
-        throw new Error("Inverse not made yet.")
+        throw new Error("Matrix.inverse has not been made yet.")
     }
 
     static add(m1, m2) {
@@ -87,6 +144,22 @@ class Matrix {
 
     static multiplyScalar(matrix, scalar) {
         return matrix.copy().multiplyScalar(scalar);
+    }
+
+    static rotationAxis(axis, angle) {
+        let c = Math.cos(angle);
+        let s = Math.sin(angle);
+        let t = 1 - c;
+    
+        let x = axis.x, y = axis.y, z = axis.z;
+    
+        let rotationMatrix = new Matrix(3, 3, [
+            t * x * x + c,     t * x * y - s * z, t * x * z + s * y,
+            t * x * y + s * z, t * y * y + c,     t * y * z - s * x,
+            t * x * z - s * y, t * y * z + s * x, t * z * z + c
+        ]);
+    
+        return rotationMatrix;
     }
 }
 

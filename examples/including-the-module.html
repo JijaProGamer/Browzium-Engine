@@ -61,7 +61,7 @@
 
 <script type="module">
     import Engine from "../dist/bundle.js"
-    import { Vector3, Triangle } from "../dist/bundle.js"
+    import { Vector3, Triangle, Matrix } from "../dist/bundle.js"
     import { OBJParser } from "../dist/bundle.js"
 
     /*
@@ -140,36 +140,62 @@
     // Camera rotation
 
     let PPI = 400;
-    let cameraRotation = new Vector3(0, 0, 0);
+    let cameraRotation = new Vector3(0, 0, -1);
     let rotationX = 0;
     let rotationY = 0;
-    let rotationZ = 0;
 
-    GameEngine.Camera.SetOrientation(new Vector3(0.1, 0.1, -1))
-
-    function updateOrientation(e) {
+    /*function updateOrientation(e) {
         rotationX += (e.movementX / PPI)
         rotationY += (e.movementY / PPI)
 
         rotationX = Math.max(-1, Math.min(rotationX, 1))
         rotationY = Math.max(-1, Math.min(rotationY, 1))
-        rotationZ = rotationX
 
-        //cameraRotation.x = 0
         cameraRotation.x = rotationX
         cameraRotation.y = rotationY
-        cameraRotation.z = -1
-        //cameraRotation.z = rotationZ
+        cameraRotation.z = -1;
 
         GameEngine.Camera.SetOrientation(cameraRotation)
+    }*/
 
-        //console.log(cameraRotation)
+    function updateOrientation(e) {
+        rotationX -= (e.movementX / PPI)
+        rotationY -= (e.movementY / PPI)
+
+        //rotationX = Math.max(-1, Math.min(rotationX, 1))
+        rotationY = Math.max(-0.65, Math.min(rotationY, 0.65))
+
+        cameraRotation.x = rotationX
+        cameraRotation.y = rotationY
+
+        let orientation = cameraRotation.copy().add(new Vector3(1, 1, 1)).divideScalar(2).multiplyScalar(360)
+        orientation.z = 0;
+
+        GameEngine.Camera.SetOrientationEuler(orientation)
     }
+
+    /*function updateOrientation(e) {
+        rotationX += (e.movementX / PPI);
+        rotationY += (e.movementY / PPI);
+
+        rotationX = Math.max(-1, Math.min(rotationX, 1));
+        rotationY = Math.max(-1, Math.min(rotationY, 1));
+
+        let forward = new Vector3(0, 0, -1);
+
+        let rotationMatrixX = Matrix.rotationAxis(new Vector3(1, 0, 0), rotationY);
+        let rotationMatrixY = Matrix.rotationAxis(new Vector3(0, 1, 0), rotationX);
+        let rotationMatrix = rotationMatrixX.multiply(rotationMatrixY);
+
+        cameraRotation = rotationMatrix.multiplyVector(forward);
+
+        GameEngine.Camera.SetOrientation(cameraRotation);
+    }*/
 
     // Camera position
 
     let cameraPosition = new Vector3(0, 5, -2);
-    
+
     let cameraSpeed = 0.05;
     let moveModes = { up: false, down: false, right: false, left: false, forward: false, back: false }
 
@@ -177,7 +203,7 @@
 
     function MoveCameraPosition() {
         let moveDirection = new Vector3(0, 0, 0)
-        let right = new Vector3(0, 1, 0).cross(cameraRotation.copy().normalize()).normalize();
+        let right = new Vector3(0, 1, 0).cross(cameraRotation).normalize();
 
         if (moveModes.up) {
             moveDirection.add(new Vector3(0, 1 * cameraSpeed, 0));
@@ -315,16 +341,16 @@
         frameTime += delta;
         frameTimes10s += delta;
         frameTimes1m += delta;
- 
+
         if (frameTime > 1000) {
-            if(frameTimes10s > 10_000){
+            if (frameTimes10s > 10_000) {
                 frameTimes0 = frameTimes10s / framesTaken0;
 
                 frameTimes10s = 0
                 framesTaken0 = 0
             }
 
-            if(frameTimes1m > 60_000){
+            if (frameTimes1m > 60_000) {
                 frameTimes1 = frameTimes1m / framesTaken1;
 
                 frameTimes1m = 0

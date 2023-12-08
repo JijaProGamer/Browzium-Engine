@@ -12,6 +12,11 @@ class Vector2 {
         this.y = y;
     }
 
+    get(position){
+        if(position == 0) return this.x;
+        if(position == 1) return this.y;
+    }
+
     copy() {
         return new Vector2(this.x, this.y);
     }

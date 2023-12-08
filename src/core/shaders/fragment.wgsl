@@ -10,18 +10,7 @@ fn applyACES(x: vec3<f32>) -> vec3<f32> {
 
 @fragment 
 fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
-    // Indexing
-
     var pixelPosition = vec2<i32>(fsInput.position.xy);
-    /*let halfWidth = round(inputData.resolution.x / 2);
-
-    if(pixelPosition.x < halfWidth){
-        pixelPosition.x += halfWidth;
-    } else {
-        pixelPosition.x -= halfWidth;
-    }*/
-
-    //let index = pixelToIndex(pixelPosition);
 
     var pixel = textureLoad(image_color_texture_read, pixelPosition, 0);
     //var pixel = textureLoad(image_albedo_texture_read, pixelPosition, 0);
@@ -29,24 +18,13 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     //var pixel = imageBuffer[index].noisy_color;
     //var temporalData = temporalBuffer[index];
 
-    /*if(image_history_data.staticFrames == 0){
-        textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
-    } else {
-        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
-
-        //pixel = (pixel + historyPixel) / 2;
-        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.01, 1));
-        //pixel = mix(historyPixel, pixel, 1 / image_history_data.staticFrames);
-        textureStore(image_history, pixelPosition, pixel);
-    }*/
-
     if(image_history_data.staticFrames == 0){
         textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
     } else {
         let w = pixel.w;
 
         let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
-        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.025, 1)); 
+        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.05, 1)); 
 
         if(w > 0){
             textureStore(image_history, pixelPosition, pixel);

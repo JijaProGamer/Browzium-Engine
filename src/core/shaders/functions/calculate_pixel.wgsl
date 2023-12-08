@@ -25,7 +25,7 @@ fn calculatePixelDirection(
     let cameraX = screenX * aspectRatio * depth;
     let cameraY = screenY * depth;
 
-    return (inputData.CameraToWorldMatrix * vec4<f32>(cameraX, cameraY, -1, 0)).xyz;
+    return (inputData.CameraToWorldMatrix * vec4<f32>(cameraX, cameraY, -1, 1)).xyz;
 }
 
 fn calculateTemporalData(
