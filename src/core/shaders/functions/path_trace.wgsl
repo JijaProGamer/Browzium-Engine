@@ -14,7 +14,7 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 15;
+const maxDepth: i32 = 5;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -33,7 +33,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 
         var intersection = get_ray_intersection(realStart, realDirection);
         var material = intersection.material;
-        let emittance = material.color * material.emittance;
+        var emittance = material.color * material.emittance;
 
         if(depth == 0){
             if (!intersection.hit) { 
@@ -62,7 +62,9 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         let p = 1.0 / (2.0 * 3.141592653589);
         let cos_theta = dot(newDirection, intersection.normal);
         
-        let BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
+        var BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
+        BRDF *= 1.0 - step(0.5, f32(depth)); // remove albedo from first bounce, we only want the noisy data
+        //emittance *= max(f32(depth), 1);
 
         accumulatedColor *= emittance + (BRDF * cos_theta / p);
 

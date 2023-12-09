@@ -111,12 +111,12 @@ struct OutputTextureData {
 @group(2) @binding(6) var image_albedo_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(7) var image_albedo_texture_read: texture_2d<f32>;
 
-@group(3) @binding(0) var image_history: texture_storage_2d<rgba16float, write>;
-@group(3) @binding(1) var image_history_read: texture_2d<f32>;
+@group(2) @binding(8) var image_history: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(9) var image_history_read: texture_2d<f32>;
 
-@group(3) @binding(2) var<storage, read> image_history_data: OutputTextureData;
+@group(2) @binding(10) var<storage, read> image_history_data: OutputTextureData;
 
-@group(3) @binding(3) var<storage, read_write> temporalBuffer: array<TemportalData>;
+@group(2) @binding(11) var<storage, read_write> temporalBuffer: array<TemportalData>;
 
 //@group(2) @binding(0) var<storage, read_write> imageBuffer: array<Pixel>;
 ///@group(2) @binding(1) var image_color_sampler: sampler;

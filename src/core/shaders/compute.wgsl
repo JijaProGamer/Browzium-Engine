@@ -111,12 +111,12 @@ struct OutputTextureData {
 @group(2) @binding(6) var image_albedo_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(7) var image_albedo_texture_read: texture_2d<f32>;
 
-@group(3) @binding(0) var image_history: texture_storage_2d<rgba16float, write>;
-@group(3) @binding(1) var image_history_read: texture_2d<f32>;
+@group(2) @binding(8) var image_history: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(9) var image_history_read: texture_2d<f32>;
 
-@group(3) @binding(2) var<storage, read> image_history_data: OutputTextureData;
+@group(2) @binding(10) var<storage, read> image_history_data: OutputTextureData;
 
-@group(3) @binding(3) var<storage, read_write> temporalBuffer: array<TemportalData>;
+@group(2) @binding(11) var<storage, read_write> temporalBuffer: array<TemportalData>;
 
 //@group(2) @binding(0) var<storage, read_write> imageBuffer: array<Pixel>;
 ///@group(2) @binding(1) var image_color_sampler: sampler;
@@ -520,7 +520,7 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 15;
+const maxDepth: i32 = 5;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -539,7 +539,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 
         var intersection = get_ray_intersection(realStart, realDirection);
         var material = intersection.material;
-        let emittance = material.color * material.emittance;
+        var emittance = material.color * material.emittance;
 
         if(depth == 0){
             if (!intersection.hit) { 
@@ -568,7 +568,9 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         let p = 1.0 / (2.0 * 3.141592653589);
         let cos_theta = dot(newDirection, intersection.normal);
         
-        let BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
+        var BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
+        BRDF *= 1.0 - step(0.5, f32(depth)); // remove albedo from first bounce, we only want the noisy data
+        //emittance *= max(f32(depth), 1);
 
         accumulatedColor *= emittance + (BRDF * cos_theta / p);
 
@@ -634,7 +636,7 @@ fn calculatePixelColor(
     var pixelModifier = randomPoint2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
-    var realPixel = pixel + pixelModifier.output / 2;
+    var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
 
     let direction = calculatePixelDirection(realPixel);
     let start = inputData.CameraPosition;
@@ -686,6 +688,10 @@ fn applyACES(x: vec3<f32>) -> vec3<f32> {
     return clamp((x * (ACES_a * x + ACES_b)) / (x * (ACES_c * x + ACES_d) + ACES_e), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
+fn isNan(num: f32) -> bool {
+    return num != num || (bitcast<u32>(num) & 0x7fffffffu) > 0x7f800000u;
+}
+
 @fragment 
 fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     var pixelPosition = vec2<i32>(fsInput.position.xy);
@@ -702,9 +708,9 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
         let w = pixel.w;
 
         let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
-        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.002, 1)); 
+        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.002, 1));
 
-        if(w > 0){
+        if(w > 0 && !(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
             textureStore(image_history, pixelPosition, pixel);
         }
 

@@ -71,15 +71,13 @@ class RenderingManager {
     computePipeline;
     renderPipeline;
 
-    #computeDataBindGroup
-    #computeMapBindGroup
-    #computeImageBindGroup1
-    #computeImageBindGroup2
+    #computeDataBindGroup;
+    #computeMapBindGroup;
+    #computeImageBindGroup;
 
-    #computeDataLayout
-    #computeMapLayout
-    #computeImageLayout1
-    #computeImageLayout2
+    #computeDataLayout;
+    #computeMapLayout;
+    #computeImageLayout;
 
     #renderTextureColor;
     #renderTextureReadColor;
@@ -117,6 +115,7 @@ class RenderingManager {
 
     tonemapMode = 1;
     gammaCorrect = true;
+    denoising = "A-Trous"
     frame = 0;
     staticFrames = 0;
 
@@ -281,8 +280,8 @@ class RenderingManager {
             ],
         });
 
-        this.#computeImageBindGroup1 = this.device.createBindGroup({
-            layout: this.#computeImageLayout1,
+        this.#computeImageBindGroup = this.device.createBindGroup({
+            layout: this.#computeImageLayout,
             label: "Browzium Engine compute shader image bind group",
             entries: [
                 {
@@ -316,30 +315,23 @@ class RenderingManager {
                 {
                     binding: 7,
                     resource: this.#renderTextureReadAlbedo.createView(),
-                }
-            ],
-        });
-
-        this.#computeImageBindGroup2 = this.device.createBindGroup({
-            layout: this.#computeImageLayout2,
-            label: "Browzium Engine compute shader image bind group",
-            entries: [
+                },
                 {
-                    binding: 0,
+                    binding: 8,
                     resource: this.#renderTextureHistory.createView(),
                 },
                 {
-                    binding: 1,
+                    binding: 9,
                     resource: this.#renderTextureHistoryRead.createView(),
                 },
                 {
-                    binding: 2,
+                    binding: 10,
                     resource: {
                         buffer: this.#renderHistoryData,
                     },
                 },
                 {
-                    binding: 3,
+                    binding: 11,
                     resource: {
                         buffer: this.#temporalBuffer,
                     },
@@ -390,7 +382,7 @@ class RenderingManager {
         });
 
 
-        this.#computeImageLayout1 = this.device.createBindGroupLayout({
+        this.#computeImageLayout = this.device.createBindGroupLayout({
             entries: [
                 {
                     binding: 0,
@@ -467,14 +459,9 @@ class RenderingManager {
                         viewDimension: "2d",
                         multisampled: false,
                     }
-                }
-            ],
-        });
-
-        this.#computeImageLayout2 = this.device.createBindGroupLayout({
-            entries: [
+                },
                 {
-                    binding: 0,
+                    binding: 8,
                     visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     storageTexture: {
                         access: "write-only",
@@ -484,7 +471,7 @@ class RenderingManager {
                     }
                 },
                 {
-                    binding: 1,
+                    binding: 9,
                     visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     texture: {
                         format: "rgba16float",
@@ -493,14 +480,14 @@ class RenderingManager {
                     }
                 },
                 {
-                    binding: 2 ,
+                    binding: 10 ,
                     visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     buffer: {
                         type: "read-only-storage"
                     },
                 },
                 {
-                    binding: 3,
+                    binding: 1,
                     visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     buffer: {
                         type: "storage",
@@ -510,7 +497,7 @@ class RenderingManager {
         });
 
         let pipelineLayout = this.device.createPipelineLayout({
-            bindGroupLayouts: [this.#computeDataLayout, this.#computeMapLayout, this.#computeImageLayout1, this.#computeImageLayout2],
+            bindGroupLayouts: [this.#computeDataLayout, this.#computeMapLayout, this.#computeImageLayout],
             label: "Browzium Engine Pipeline Layout",
         })
 
@@ -557,8 +544,7 @@ class RenderingManager {
 
         passEncoder.setBindGroup(0, this.#computeDataBindGroup);
         passEncoder.setBindGroup(1, this.#computeMapBindGroup);
-        passEncoder.setBindGroup(2, this.#computeImageBindGroup1);
-        passEncoder.setBindGroup(3, this.#computeImageBindGroup2);
+        passEncoder.setBindGroup(2, this.#computeImageBindGroup);
 
         passEncoder.dispatchWorkgroups(Math.ceil(this.canvas.width / 16), Math.ceil(this.canvas.height / 16), 1); //  Z for SPP
         passEncoder.end();
@@ -685,8 +671,7 @@ class RenderingManager {
 
         passEncoder.setBindGroup(0, this.#computeDataBindGroup);
         passEncoder.setBindGroup(1, this.#computeMapBindGroup);
-        passEncoder.setBindGroup(2, this.#computeImageBindGroup1);
-        passEncoder.setBindGroup(3, this.#computeImageBindGroup2);
+        passEncoder.setBindGroup(2, this.#computeImageBindGroup);
 
         passEncoder.draw(6, 2, 0, 0);
         passEncoder.end();
