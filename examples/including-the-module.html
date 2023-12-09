@@ -70,7 +70,10 @@
         https://cdn.jsdelivr.net/gh/JijaProGamer/Browzium-Engine/dist/bundle.js
     */
 
-    const shaderSource = await (await fetch("../src/core/shaders/compute.wgsl")).text();
+    const computeShaderSource = await (await fetch("../src/core/shaders/compute-output.wgsl")).text();
+    const vertexShaderSource = await (await fetch("../src/core/shaders/vertex.wgsl")).text();
+    const fragmentShaderSource = await (await fetch("../src/core/shaders/fragment-output.wgsl")).text();
+    const ATrousDenoiserShaderSource = await (await fetch("../src/core/shaders/compute-denoise.wgsl")).text();
 
     const frame_time_ui = document.querySelector(`#frame_time`)
     const frames_per_second_ui = document.querySelector(`#frames_per_second`)
@@ -86,13 +89,20 @@
     let GameEngine = new Engine({
         renderer: {
             canvas,
-            shader: shaderSource,
+            shaders: {
+                compute: computeShaderSource,
+                vertex: vertexShaderSource,
+                fragment: fragmentShaderSource,
+                denoisers: {
+                    atrous: ATrousDenoiserShaderSource
+                }
+            },
         }
     })
 
     GameEngine.Renderer.tonemapMode = 1;
     GameEngine.Renderer.gammaCorrect = true;
-    GameEngine.Renderer.denoising = "A-Trous";
+    GameEngine.Renderer.denoiser = "atrous";
 
     await GameEngine.AwaitPageActivation()
     await GameEngine.InitActivation()
@@ -348,6 +358,9 @@
     let cornellBox = OBJParser(await (await fetch("./cornellBox.obj")).text(), {
         "cornellBox": await (await fetch("./cornellBox.mtl")).text()
     })
+
+    //cornellBox.triangles.splice(cornellBox.objects.front_wall[0], 1)
+    //cornellBox.triangles.splice(cornellBox.objects.front_wall[1] - 1, 1)
 
     await GameEngine.Renderer.SetMaterials(cornellBox.materials)
     await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true)

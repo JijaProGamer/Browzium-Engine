@@ -4,11 +4,11 @@
 
 #include "path_trace.wgsl"
 
-fn getTemporalData(
+/*fn getTemporalData(
     pixel: vec2<f32>
 ) -> TemportalData {
     return temporalBuffer[u32(pixel.x + pixel.y * inputData.resolution.x)];
-}
+}*/
 
 fn calculatePixelDirection(
     pixel: vec2<f32>

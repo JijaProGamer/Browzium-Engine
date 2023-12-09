@@ -7,7 +7,8 @@ import { parseMAT } from "./MATParser.js";
 function parseOBJ(obj, materialsCode=[]) {
     const result = {
         triangles: [],
-        materials: {}
+        materials: {},
+        objects: {},
     }
 
     const lines = obj.split('\n');
@@ -16,12 +17,17 @@ function parseOBJ(obj, materialsCode=[]) {
     let textures = []
     let vertices = []
     let lastMaterial = "default"
+    let lastObject = ""
 
     lines.forEach(line => {
         const parts = line.trim().split(/\s+/);
         const keyword = parts.shift();
 
         switch (keyword) {
+            case "o":
+                lastObject = parts[0]
+                result.objects[lastObject] = []
+                break;
             case 'v':
                 var vertex = new Vector3(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]));
                 vertices.push(vertex)
@@ -95,8 +101,8 @@ function parseOBJ(obj, materialsCode=[]) {
                     }
                 
                     result.triangles.push(triangle);
+                    if(lastObject) result.objects[lastObject].push(result.triangles.length - 1)
                 }
-                
 
                 break;
             default:

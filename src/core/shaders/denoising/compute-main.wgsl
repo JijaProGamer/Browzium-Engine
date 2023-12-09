@@ -1,17 +1,39 @@
-[[group(0), binding(0)]] var colorMap: texture_2d<f32>;
-[[group(0), binding(1)]] var normalMap: texture_2d<f32>;
-[[group(0), binding(2)]] var posMap: texture_2d<f32>;
+struct InputGlobalData {
+    resolution: vec2<f32>,
+    fov: f32,
 
-var c_phi: f32;
+    padding0: f32,
+    CameraPosition: vec3<f32>,
+
+    padding1: f32,
+    CameraToWorldMatrix: mat4x4<f32>,
+
+    tonemapmode: f32,
+    gammacorrect: f32,
+};
+
+@group(0) @binding(0) var<storage, read> inputData: InputGlobalData;
+
+@group(1) @binding(0) var colorMap: texture_2d<f32>;
+@group(1) @binding(1) var normalMap: texture_2d<f32>;
+@group(1) @binding(2) var depthMap: texture_2d<f32>;
+@group(1) @binding(3) var albedoMap: texture_2d<f32>;
+
+/*var c_phi: f32;
 var n_phi: f32;
 var p_phi: f32;
 var stepwidth: f32;
 
 var kernel: array<f32, 25>;
-var offset: array<vec2<f32>, 25>;
+var offset: array<vec2<f32>, 25>;*/
 
-[[location(0)]] fn main([[location(0)]] in fs_input : vec2<f32>) -> [[location(0)]] vec4<f32> {
-    var sum: vec4<f32> = vec4<f32>(0.0);
+@compute @workgroup_size(16, 16, 1) 
+fn computeMain(
+    @builtin(global_invocation_id) global_invocation_id: vec3<u32>,
+    @builtin(num_workgroups) num_workgroups: vec3<u32>,
+    @builtin(workgroup_id) workgroup_id: vec3<u32>
+) {
+    /*var sum: vec4<f32> = vec4<f32>(0.0);
     var step: vec2<f32> = vec2<f32>(1.0 / 512.0, 1.0 / 512.0); // resolution
 
     var cval: vec4<f32> = textureSample(colorMap, fs_input);
@@ -43,5 +65,5 @@ var offset: array<vec2<f32>, 25>;
         cum_w = cum_w + weight * kernel[i];
     }
 
-    return vec4<f32>(sum / cum_w);
+    return vec4<f32>(sum / cum_w);*/
 }

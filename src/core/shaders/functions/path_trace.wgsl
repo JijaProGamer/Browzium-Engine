@@ -63,10 +63,13 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         let cos_theta = dot(newDirection, intersection.normal);
         
         var BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
-        BRDF *= 1.0 - step(0.5, f32(depth)); // remove albedo from first bounce, we only want the noisy data
-        //emittance *= max(f32(depth), 1);
+        var diffuse = BRDF * cos_theta / p;
 
-        accumulatedColor *= emittance + (BRDF * cos_theta / p);
+        if(depth == 0) {
+            diffuse = vec3<f32>(1, 1, 1);
+        } // remove albedo from first bounce, we only want the noisy data
+
+        accumulatedColor *= emittance + diffuse;
 
         if(material.emittance > 0){
             hit_light = true;
