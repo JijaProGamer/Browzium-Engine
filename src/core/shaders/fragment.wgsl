@@ -83,7 +83,7 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
         pixel.w = 1;
     }*/
 
-    /*if(image_history_data.staticFrames == 0){
+    if(image_history_data.staticFrames == 0){
         textureStore(image_history, pixelPosition, pixel);
     } else {
         let w = pixel.w;
@@ -96,7 +96,7 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
 
         pixel /= (image_history_data.staticFrames + 1);
         pixel.w = 1;
-    }*/
+    }
 
     if(inputData.tonemapmode == 1){
         pixel = vec4<f32>(applyACES(pixel.xyz), pixel.w);
