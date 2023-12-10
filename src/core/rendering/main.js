@@ -4,6 +4,7 @@ import Vector3 from "../classes/Vector3";
 import Octree from "../classes/octree";
 
 import ATrousDenoiser from "./denoiser/ATrous";
+import emptyDenoiser from "./denoiser/none";
 
 /*
     Triangle struct:
@@ -112,6 +113,8 @@ class RenderingManager {
 
     // Renderer Data
 
+    bounces = 5;
+    rpp = 3;
     tonemapMode = 1;
     gammaCorrect = true;
     denoiser = "atrous"
@@ -194,14 +197,14 @@ class RenderingManager {
 
         this.renderTextureHistory = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
+            format: 'rgba32float',
             usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
         });
 
         this.renderTextureHistoryRead = this.device.createTexture({
             label: "renderTextureHistoryRead",          
             size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
+            format: 'rgba32float',
             usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
         });
 
@@ -230,7 +233,7 @@ class RenderingManager {
         // Data
 
         this.computeGlobalData = this.device.createBuffer({
-            size: 112,
+            size: 128,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
@@ -447,7 +450,7 @@ class RenderingManager {
                     visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     storageTexture: {
                         access: "write-only",
-                        format: "rgba16float",
+                        format: "rgba32float",
                         viewDimension: "2d",
                         multisampled: false,
                     }
@@ -456,7 +459,7 @@ class RenderingManager {
                     binding: 2,
                     visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     texture: {
-                        format: "rgba16float",
+                        format: "rgba32float",
                         viewDimension: "2d",
                         multisampled: false,
                     }
@@ -597,6 +600,8 @@ class RenderingManager {
             this.canvas.height,
 
             this.Camera.FieldOfView,
+            //this.rpp,
+            //this.bounces,
             0,
 
             this.Camera.Position.x,
@@ -607,7 +612,9 @@ class RenderingManager {
             ...this.Camera.CameraToWorldMatrix.getContents(),
 
             this.tonemapMode,
-            this.gammaCorrect
+            this.gammaCorrect,
+            //0,
+            //0
         ])
 
         this.Camera.wasCameraUpdated = false;
@@ -869,13 +876,15 @@ class RenderingManager {
 
         await this.generateImage();
 
-        if(this.denoiser !== "none"){
-            if(!this.denoisersBuilt[this.denoiser]){
-                throw new Error(`${this.denoiser} is not a available denoiser.`)
-            }
+        // denoise
 
-            this.denoisersBuilt[this.denoiser].denoise()
+        if(!this.denoisersBuilt[this.denoiser]){
+            throw new Error(`${this.denoiser} is not a available denoiser.`)
         }
+
+        await this.denoisersBuilt[this.denoiser].denoise()
+
+        // render
 
         await this.renderImage();
 
@@ -891,9 +900,15 @@ class RenderingManager {
             throw Error("Couldn't request WebGPU adapter.");
         }
 
+        if (!this.adapter.features.has("float32-filterable")) {
+            throw new Error("Filterable 32-bit float textures support is not available");
+        }
+
         this.device = await this.adapter.requestDevice({ 
             label: "Browzium GPU Device", 
-            requiredFeatures: [],
+            requiredFeatures: [
+                "float32-filterable"
+            ],
             requiredLimits: {
                 maxStorageTexturesPerShaderStage: 6,
             }
@@ -918,7 +933,14 @@ class RenderingManager {
         this.#makeBindGroups();
 
         this.denoisersBuilt["atrous"] = new ATrousDenoiser(this);
-        this.denoisersBuilt["atrous"].makePipelines()
+        this.denoisersBuilt["none"] = new emptyDenoiser(this);
+
+        for (const denoiserName in this.denoisersBuilt) {
+            if (this.denoisersBuilt.hasOwnProperty(denoiserName)) {
+                this.denoisersBuilt[denoiserName].makePipelines()
+            }
+        }
+        
         //this.UpdateData();
 
         //await this.#Denoiser.Init()

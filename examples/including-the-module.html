@@ -73,7 +73,9 @@
     const computeShaderSource = await (await fetch("../src/core/shaders/compute-output.wgsl")).text();
     const vertexShaderSource = await (await fetch("../src/core/shaders/vertex.wgsl")).text();
     const fragmentShaderSource = await (await fetch("../src/core/shaders/fragment-output.wgsl")).text();
-    const ATrousDenoiserShaderSource = await (await fetch("../src/core/shaders/compute-denoise.wgsl")).text();
+
+    const ATrousDenoiserShaderSource = await (await fetch("../src/core/shaders/atrous-denoiser.wgsl")).text();
+    const NoneDenoiserShaderSource = await (await fetch("../src/core/shaders/none-denoiser.wgsl")).text();
 
     const frame_time_ui = document.querySelector(`#frame_time`)
     const frames_per_second_ui = document.querySelector(`#frames_per_second`)
@@ -94,7 +96,8 @@
                 vertex: vertexShaderSource,
                 fragment: fragmentShaderSource,
                 denoisers: {
-                    atrous: ATrousDenoiserShaderSource
+                    atrous: ATrousDenoiserShaderSource,
+                    none: NoneDenoiserShaderSource,
                 }
             },
         }
@@ -103,6 +106,9 @@
     GameEngine.Renderer.tonemapMode = 1;
     GameEngine.Renderer.gammaCorrect = true;
     GameEngine.Renderer.denoiser = "atrous";
+
+    GameEngine.Renderer.bounces = 5;
+    GameEngine.Renderer.rpp = 3;
 
     await GameEngine.AwaitPageActivation()
     await GameEngine.InitActivation()

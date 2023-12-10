@@ -20,7 +20,7 @@ struct OutputTextureData {
 @group(0) @binding(0) var<storage, read> inputData: InputGlobalData;
 
 @group(1) @binding(0) var texture: texture_2d<f32>;
-@group(1) @binding(1) var image_history: texture_storage_2d<rgba16float, write>;
+@group(1) @binding(1) var image_history: texture_storage_2d<rgba32float, write>;
 @group(1) @binding(2) var image_history_read: texture_2d<f32>;
 
 @group(2) @binding(0) var<storage, read> image_history_data: OutputTextureData;
@@ -54,7 +54,7 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     //var pixel = imageBuffer[index].noisy_color;
     //var temporalData = temporalBuffer[index];
 
-    if(image_history_data.staticFrames == 0){
+    /*if(image_history_data.staticFrames == 0){
         textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
     } else {
         let w = pixel.w;
@@ -62,12 +62,41 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
         let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
         pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.002, 1));
 
-        if(w > 0 && !(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
+        if(w >= 1 && !(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
             textureStore(image_history, pixelPosition, pixel);
         }
 
         pixel.w = 1;
-    }
+    }*/
+
+    /*if(image_history_data.staticFrames == 0){
+        textureStore(image_history, pixelPosition, pixel);
+    } else {
+        let w = pixel.w;
+        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
+        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.002, 1));
+
+        if(!(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
+            textureStore(image_history, pixelPosition, pixel);
+        }
+
+        pixel.w = 1;
+    }*/
+
+    /*if(image_history_data.staticFrames == 0){
+        textureStore(image_history, pixelPosition, pixel);
+    } else {
+        let w = pixel.w;
+        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
+        pixel += historyPixel;
+
+        if(!(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
+            textureStore(image_history, pixelPosition, pixel);
+        }
+
+        pixel /= (image_history_data.staticFrames + 1);
+        pixel.w = 1;
+    }*/
 
     if(inputData.tonemapmode == 1){
         pixel = vec4<f32>(applyACES(pixel.xyz), pixel.w);

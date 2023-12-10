@@ -44,6 +44,10 @@ const offset = array<vec2<f32>, 25>(
 
 @group(2) @binding(0) var<storage, read> inputFilteringData: FilteringData;
 
+fn isNan(num: f32) -> bool {
+    return num != num || (bitcast<u32>(num) & 0x7fffffffu) > 0x7f800000u;
+}
+
 @compute @workgroup_size(16, 16, 1) 
 fn computeMain(
     @builtin(global_invocation_id) global_invocation_id: vec3<u32>,
@@ -76,14 +80,17 @@ fn computeMain(
         var normalDistanceSquared: f32 = max(dot(normalDifference, normalDifference) / (inputFilteringData.stepwidth * inputFilteringData.stepwidth), 0.0);
         var normalWeight: f32 = min(exp(-normalDistanceSquared / inputFilteringData.n_phi), 1.0);
 
-        // Only consider the x component of the depth
         var depthDifference: f32 = currentPixelDepth.x - textureLoad(depthMap, neighborUV, 0).x;
         var depthDistanceSquared: f32 = depthDifference * depthDifference;
         var depthWeight: f32 = min(exp(-depthDistanceSquared / inputFilteringData.p_phi), 1.0);
 
         var weight: f32 = colorWeight * normalWeight * depthWeight;
-        accumulatedColor = accumulatedColor + neighborColor * weight * inputFilteringData.kernel[i];
-        totalWeight = totalWeight + weight * inputFilteringData.kernel[i];
+        var color = neighborColor * weight * inputFilteringData.kernel[i];
+
+        if(!(isNan(color.x) || isNan(color.y) || isNan(color.z) || isNan(color.w))){
+            accumulatedColor = accumulatedColor + color;
+            totalWeight = totalWeight + weight * inputFilteringData.kernel[i];
+        }
     }
 
     accumulatedColor = accumulatedColor / totalWeight;

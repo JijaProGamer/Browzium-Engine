@@ -42,9 +42,10 @@ fn calculateTemporalData(
 }
 
 fn calculatePixelColor(
-    pixel: vec2<f32>
+    pixel: vec2<f32>,
+    initialPixelHash: f32, 
 ) -> TraceOutput {
-    var pixelHash = randomVec2(image_history_data.totalFrames, pixel);
+    var pixelHash = randomVec2(initialPixelHash, pixel);
 
     var pixelModifier = randomPoint2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
@@ -62,6 +63,7 @@ fn calculatePixelColor(
     //traceOutput.velocity = (temporalData.rayDirection - direction).xy;
 
     output.pixel = traceOutput;
+    output.seed = pixelHash;
     //output.temporalData = calculateTemporalData(realPixel, traceOutput, start, direction);
 
     return output;

@@ -14,7 +14,7 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 5;
+const maxDepth: i32 = 8;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -26,6 +26,9 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var hit_light = false;
     var depth: i32 = 0;
 
+    var applyRotation = false;
+    var fistColor = vec3<f32>(1);
+
     for (; depth <= maxDepth; depth = depth + 1) {
         if (depth >= maxDepth) {
             break;
@@ -35,7 +38,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var material = intersection.material;
         var emittance = material.color * material.emittance;
 
-        if(depth == 0){
+        if(depth == 0 || applyRotation == true){
             if (!intersection.hit) { 
                 intersection.depth = 999999; 
                 intersection.normal = -realDirection; 
@@ -65,8 +68,24 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
         var diffuse = BRDF * cos_theta / p;
 
-        if(depth == 0) {
+        if(applyRotation == true){
+            output.albedo = (diffuse + emittance) * fistColor;
             diffuse = vec3<f32>(1, 1, 1);
+            emittance = vec3<f32>(0, 0, 0);
+
+            applyRotation = false;
+        }
+
+        if(depth == 0) {
+            output.albedo = diffuse + emittance;
+            fistColor = output.albedo;
+            diffuse = vec3<f32>(1, 1, 1);
+            emittance = vec3<f32>(0, 0, 0);
+
+            if(material.reflectance >= 0.35){
+            //if(dot(reflected, newDirectionValue.output) > 0.9){
+                applyRotation = true;
+            }
         } // remove albedo from first bounce, we only want the noisy data
 
         accumulatedColor *= emittance + diffuse;

@@ -69,6 +69,7 @@ struct TemportalData {
 struct TraceOutput {
     pixel: Pixel,
     temporalData: TemportalData,
+    seed: f32,
 }
 
 struct TreePart {
@@ -501,7 +502,7 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 5;
+const maxDepth: i32 = 8;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -513,6 +514,9 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var hit_light = false;
     var depth: i32 = 0;
 
+    var applyRotation = false;
+    var fistColor = vec3<f32>(1);
+
     for (; depth <= maxDepth; depth = depth + 1) {
         if (depth >= maxDepth) {
             break;
@@ -522,7 +526,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var material = intersection.material;
         var emittance = material.color * material.emittance;
 
-        if(depth == 0){
+        if(depth == 0 || applyRotation == true){
             if (!intersection.hit) { 
                 intersection.depth = 999999; 
                 intersection.normal = -realDirection; 
@@ -552,8 +556,24 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
         var diffuse = BRDF * cos_theta / p;
 
-        if(depth == 0) {
+        if(applyRotation == true){
+            output.albedo = (diffuse + emittance) * fistColor;
             diffuse = vec3<f32>(1, 1, 1);
+            emittance = vec3<f32>(0, 0, 0);
+
+            applyRotation = false;
+        }
+
+        if(depth == 0) {
+            output.albedo = diffuse + emittance;
+            fistColor = output.albedo;
+            diffuse = vec3<f32>(1, 1, 1);
+            emittance = vec3<f32>(0, 0, 0);
+
+            if(material.reflectance >= 0.35){
+            //if(dot(reflected, newDirectionValue.output) > 0.9){
+                applyRotation = true;
+            }
         } // remove albedo from first bounce, we only want the noisy data
 
         accumulatedColor *= emittance + diffuse;
@@ -613,9 +633,10 @@ fn calculateTemporalData(
 }
 
 fn calculatePixelColor(
-    pixel: vec2<f32>
+    pixel: vec2<f32>,
+    initialPixelHash: f32, 
 ) -> TraceOutput {
-    var pixelHash = randomVec2(image_history_data.totalFrames, pixel);
+    var pixelHash = randomVec2(initialPixelHash, pixel);
 
     var pixelModifier = randomPoint2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
@@ -633,6 +654,7 @@ fn calculatePixelColor(
     //traceOutput.velocity = (temporalData.rayDirection - direction).xy;
 
     output.pixel = traceOutput;
+    output.seed = pixelHash;
     //output.temporalData = calculateTemporalData(realPixel, traceOutput, start, direction);
 
     return output;
@@ -648,14 +670,32 @@ fn computeMain(
         return;
     }
 
-    let index = global_invocation_id.x + global_invocation_id.y * u32(inputData.resolution.x);
-    let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy));
+    //let index = global_invocation_id.x + global_invocation_id.y * u32(inputData.resolution.x);
+
+    var avarageColor: vec4<f32>;
+    var avarageAlbedo: vec3<f32>;
+    var avarageNormal: vec3<f32>;
+    var avarageDepth: f32;
+
+    //var maxRays: f32 = 1;
+    var maxRays: f32 = 5;
+    var seed = image_history_data.totalFrames;
+
+    for(var rayNum = 0; rayNum < i32(maxRays); rayNum++){
+        let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy), seed);
+        seed = pixelData.seed;
+
+        avarageColor += pixelData.pixel.noisy_color;
+        avarageAlbedo += pixelData.pixel.albedo;
+        avarageNormal += pixelData.pixel.normal;
+        avarageDepth += pixelData.pixel.depth;
+    }
 
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
 
-    textureStore(image_color_texture, global_invocation_id.xy, pixelData.pixel.noisy_color);
-    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.albedo, 0));
-    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.normal, 0));
-    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.depth, 0, 0, 0));
+    textureStore(image_color_texture, global_invocation_id.xy, avarageColor / maxRays);
+    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
+    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));
+    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(avarageDepth / maxRays, 0, 0, 0));
 }

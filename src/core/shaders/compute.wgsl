@@ -69,6 +69,7 @@ struct TemportalData {
 struct TraceOutput {
     pixel: Pixel,
     temporalData: TemportalData,
+    seed: f32,
 }
 
 struct TreePart {
@@ -115,14 +116,32 @@ fn computeMain(
         return;
     }
 
-    let index = global_invocation_id.x + global_invocation_id.y * u32(inputData.resolution.x);
-    let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy));
+    //let index = global_invocation_id.x + global_invocation_id.y * u32(inputData.resolution.x);
+
+    var avarageColor: vec4<f32>;
+    var avarageAlbedo: vec3<f32>;
+    var avarageNormal: vec3<f32>;
+    var avarageDepth: f32;
+
+    //var maxRays: f32 = 1;
+    var maxRays: f32 = 5;
+    var seed = image_history_data.totalFrames;
+
+    for(var rayNum = 0; rayNum < i32(maxRays); rayNum++){
+        let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy), seed);
+        seed = pixelData.seed;
+
+        avarageColor += pixelData.pixel.noisy_color;
+        avarageAlbedo += pixelData.pixel.albedo;
+        avarageNormal += pixelData.pixel.normal;
+        avarageDepth += pixelData.pixel.depth;
+    }
 
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
 
-    textureStore(image_color_texture, global_invocation_id.xy, pixelData.pixel.noisy_color);
-    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.albedo, 0));
-    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.normal, 0));
-    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(pixelData.pixel.depth, 0, 0, 0));
+    textureStore(image_color_texture, global_invocation_id.xy, avarageColor / maxRays);
+    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
+    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));
+    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(avarageDepth / maxRays, 0, 0, 0));
 }
