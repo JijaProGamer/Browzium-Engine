@@ -9,7 +9,8 @@ class Triangle {
     nb = new Vector3(0, 0, 0);
     nc = new Vector3(0, 0, 0);
 
-    material = "default"
+    material = "default";
+    objectId = 0;
 }
 
 export default Triangle;

@@ -28,7 +28,7 @@ struct Triangle {
     padding5: f32,
 
     material_index: f32,
-    padding6: f32,
+    object_id: f32,
     padding7: f32,
     padding8: f32,
 };
@@ -58,8 +58,7 @@ struct Pixel {
     normal: vec3<f32>,
     velocity: vec2<f32>,
     depth: f32,
-    //depth: f32,
-    //albedo: array<u32, 3>,
+    object_id: f32,
 }
 
 struct TemportalData {
@@ -101,6 +100,7 @@ struct OutputTextureData {
 @group(2) @binding(1) var image_normal_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(2) var image_depth_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(3) var image_albedo_texture: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(4) var image_object_texture: texture_storage_2d<r32float, write>;
 
 @group(3) @binding(0) var<storage, read> image_history_data: OutputTextureData;
 
@@ -228,6 +228,7 @@ struct HitResult {
     hit: bool,
 
     material: Material,
+    object_id: f32,
 
     normal: vec3<f32>,
     position: vec3<f32>
@@ -314,6 +315,7 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
             result = current_result;
             depth = result.depth;
             result.material = inputMaterials[i32(currentTriangle.material_index)];
+            result.object_id = currentTriangle.object_id;
         }
     }
 
@@ -502,7 +504,7 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 8;
+const maxDepth: i32 = 5;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -557,6 +559,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var diffuse = BRDF * cos_theta / p;
 
         if(applyRotation == true){
+            output.object_id = intersection.object_id;
             output.albedo = (diffuse + emittance) * fistColor;
             diffuse = vec3<f32>(1, 1, 1);
             emittance = vec3<f32>(0, 0, 0);
@@ -565,6 +568,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         }
 
         if(depth == 0) {
+            output.object_id = intersection.object_id;
             output.albedo = diffuse + emittance;
             fistColor = output.albedo;
             diffuse = vec3<f32>(1, 1, 1);
@@ -677,9 +681,10 @@ fn computeMain(
     var avarageNormal: vec3<f32>;
     var avarageDepth: f32;
 
-    //var maxRays: f32 = 1;
-    var maxRays: f32 = 5;
+    var maxRays: f32 = 1;
+    //var maxRays: f32 = 5;
     var seed = image_history_data.totalFrames;
+    var object: f32 = 0;
 
     for(var rayNum = 0; rayNum < i32(maxRays); rayNum++){
         let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy), seed);
@@ -689,6 +694,7 @@ fn computeMain(
         avarageAlbedo += pixelData.pixel.albedo;
         avarageNormal += pixelData.pixel.normal;
         avarageDepth += pixelData.pixel.depth;
+        object = pixelData.pixel.object_id;
     }
 
     //imageBuffer[index] = pixelData.pixel;
@@ -698,4 +704,5 @@ fn computeMain(
     textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
     textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));
     textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(avarageDepth / maxRays, 0, 0, 0));
+    textureStore(image_object_texture, global_invocation_id.xy, vec4<f32>(object, 0, 0, 0));
 }

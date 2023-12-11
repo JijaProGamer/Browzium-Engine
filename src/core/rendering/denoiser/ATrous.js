@@ -1,27 +1,17 @@
 class ATrousDenoiser {
-    levels = 5;
+    levels = 10;
     levelSteps = []//[1, 3, 5, 8, 11]
-    colorStrenght = 0.5;
+    colorStrenght = 1;
     normalStrenght = 0.5;
     depthStrenght = 0.1;
-    
-    kernel = [];
 
     parent;
 
-    constructor(parent){
+    constructor(parent) {
         this.parent = parent;
-
-        this.kernel = [
-            0.0120, 0.0261, 0.0338, 0.0261, 0.0120,
-            0.0261, 0.0568, 0.0731, 0.0568, 0.0261,
-            0.0338, 0.0731, 0.0944, 0.0731, 0.0338,
-            0.0261, 0.0568, 0.0731, 0.0568, 0.0261,
-            0.0120, 0.0261, 0.0338, 0.0261, 0.0120
-        ];
     }
 
-    makeBindGroups(){
+    makeBindGroups() {
         // render textures
 
         this.renderTextureColor = this.parent.device.createTexture({
@@ -48,6 +38,12 @@ class ATrousDenoiser {
             usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
         });
 
+        this.renderTextureObject = this.parent.device.createTexture({
+            size: { width: this.parent.canvas.width, height: this.parent.canvas.height },
+            format: 'r32float',
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+        });
+
         this.renderTextureOutput = this.parent.device.createTexture({
             size: { width: this.parent.canvas.width, height: this.parent.canvas.height },
             format: 'rgba16float',
@@ -57,7 +53,7 @@ class ATrousDenoiser {
         // Data
 
         this.filteringData = this.parent.device.createBuffer({
-            size: 132,
+            size: 20,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
@@ -85,6 +81,10 @@ class ATrousDenoiser {
                 },
                 {
                     binding: 4,
+                    resource: this.renderTextureObject.createView(),
+                },
+                {
+                    binding: 5,
                     resource: this.renderTextureOutput.createView(),
                 }
             ],
@@ -104,7 +104,7 @@ class ATrousDenoiser {
         });
     }
 
-    makePipelines(){
+    makePipelines() {
         const shader = this.parent.device.createShaderModule({ code: this.parent.opts.shaders.denoisers.atrous, label: "Browzium engine compute shader atrous denoiser code" });
 
         this.computeFilteringDataLayout = this.parent.device.createBindGroupLayout({
@@ -123,7 +123,7 @@ class ATrousDenoiser {
             entries: [
                 {
                     binding: 0,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.COMPUTE,
                     texture: {
                         format: "rgba16float",
                         viewDimension: "2d",
@@ -132,7 +132,7 @@ class ATrousDenoiser {
                 },
                 {
                     binding: 1,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.COMPUTE,
                     texture: {
                         format: "rgba16float",
                         viewDimension: "2d",
@@ -141,7 +141,7 @@ class ATrousDenoiser {
                 },
                 {
                     binding: 2,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.COMPUTE,
                     texture: {
                         format: "rgba16float",
                         viewDimension: "2d",
@@ -150,7 +150,7 @@ class ATrousDenoiser {
                 },
                 {
                     binding: 3,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.COMPUTE,
                     texture: {
                         format: "rgba16float",
                         viewDimension: "2d",
@@ -159,7 +159,16 @@ class ATrousDenoiser {
                 },
                 {
                     binding: 4,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.COMPUTE,
+                    visibility: GPUShaderStage.COMPUTE,
+                    texture: {
+                        format: "r32float",
+                        viewDimension: "2d",
+                        multisampled: false,
+                    }
+                },
+                {
+                    binding: 5,
+                    visibility: GPUShaderStage.COMPUTE,
                     storageTexture: {
                         access: "write-only",
                         format: "rgba16float",
@@ -185,7 +194,7 @@ class ATrousDenoiser {
         });
     }
 
-    async #runLevel(level){
+    async #runLevel(level) {
         // set data
         let isLastStep = level == this.levels
 
@@ -193,14 +202,9 @@ class ATrousDenoiser {
             this.colorStrenght,
             this.normalStrenght,
             this.depthStrenght,
+
             this.levelSteps[level] || Math.pow(2, level),
             isLastStep,
-
-            0,
-            0,
-            0,
-
-            ...this.kernel,
         ])
 
         this.parent.device.queue.writeBuffer(this.filteringData, 0, filteringDataArray, 0, filteringDataArray.length);
@@ -224,7 +228,7 @@ class ATrousDenoiser {
 
         // copy output
 
-        if(level < this.levels){
+        if (level < this.levels) {
             const copyEncoder = this.parent.device.createCommandEncoder();
 
             copyEncoder.copyTextureToTexture(
@@ -240,13 +244,13 @@ class ATrousDenoiser {
                     depthOrArrayLayers: 1,
                 },
             );
-    
+
             this.parent.device.queue.submit([copyEncoder.finish()]);
             await this.parent.device.queue.onSubmittedWorkDone()
         }
     }
 
-    #copyTracedData(){
+    #copyTracedData() {
         const copyEncoder = this.parent.device.createCommandEncoder();
 
         copyEncoder.copyTextureToTexture(
@@ -305,13 +309,27 @@ class ATrousDenoiser {
             },
         );
 
+        copyEncoder.copyTextureToTexture(
+            {
+                texture: this.parent.renderTextureObject,
+            },
+            {
+                texture: this.renderTextureObject,
+            },
+            {
+                width: this.parent.canvas.width,
+                height: this.parent.canvas.height,
+                depthOrArrayLayers: 1,
+            },
+        );
+
         this.parent.device.queue.submit([copyEncoder.finish()]);
     }
 
-    async denoise(){
+    async denoise() {
         this.#copyTracedData()
 
-        for(let level = 1; level <= this.levels; level ++){
+        for (let level = 1; level <= this.levels; level++) {
             await this.#runLevel(level)
         }
 

@@ -3,6 +3,7 @@ struct HitResult {
     hit: bool,
 
     material: Material,
+    object_id: f32,
 
     normal: vec3<f32>,
     position: vec3<f32>
@@ -89,6 +90,7 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
             result = current_result;
             depth = result.depth;
             result.material = inputMaterials[i32(currentTriangle.material_index)];
+            result.object_id = currentTriangle.object_id;
         }
     }
 

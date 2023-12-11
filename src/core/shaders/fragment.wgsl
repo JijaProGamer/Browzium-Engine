@@ -74,20 +74,6 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     } else {
         let w = pixel.w;
         let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
-        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.002, 1));
-
-        if(!(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
-            textureStore(image_history, pixelPosition, pixel);
-        }
-
-        pixel.w = 1;
-    }*/
-
-    if(image_history_data.staticFrames == 0){
-        textureStore(image_history, pixelPosition, pixel);
-    } else {
-        let w = pixel.w;
-        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
         pixel += historyPixel;
 
         if(!(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
@@ -96,7 +82,26 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
 
         pixel /= (image_history_data.staticFrames + 1);
         pixel.w = 1;
-    }
+    }*/ // Best one so far
+
+    /*if(image_history_data.staticFrames == 0){
+        pixel.w = 1;
+        textureStore(image_history, pixelPosition, pixel);
+    } else {
+        let w = pixel.w;
+        pixel.w = 0;
+        let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
+        pixel += historyPixel;
+
+        if(w > 0 && !(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
+            pixel.w = historyPixel.w + 1;
+            textureStore(image_history, pixelPosition, pixel);
+        }
+
+        pixel /= 
+        //pixel /= pixel.w;
+        pixel.w = 1;
+    }*/ // Even better, but I got something wrong idk what
 
     if(inputData.tonemapmode == 1){
         pixel = vec4<f32>(applyACES(pixel.xyz), pixel.w);

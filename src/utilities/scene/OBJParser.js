@@ -4,7 +4,10 @@ import { Material } from "../../core/classes/Material.js";
 
 import { parseMAT } from "./MATParser.js";
 
-function parseOBJ(obj, materialsCode=[]) {
+function parseOBJ(obj, materialsCode=[], options={}) {
+    options = {...{
+        objectIdentityMode: "perFace"
+    }, ...options}
     const result = {
         triangles: [],
         materials: {},
@@ -18,6 +21,7 @@ function parseOBJ(obj, materialsCode=[]) {
     let vertices = []
     let lastMaterial = "default"
     let lastObject = ""
+    let lastObjectId = -1
 
     lines.forEach(line => {
         const parts = line.trim().split(/\s+/);
@@ -25,6 +29,10 @@ function parseOBJ(obj, materialsCode=[]) {
 
         switch (keyword) {
             case "o":
+                if(options.objectIdentityMode == "perObject"){
+                    lastObjectId++;  
+                }
+
                 lastObject = parts[0]
                 result.objects[lastObject] = []
                 break;
@@ -58,6 +66,10 @@ function parseOBJ(obj, materialsCode=[]) {
                 
                 break;
             case 'f':
+                if(options.objectIdentityMode == "perFace"){
+                    lastObjectId++;  
+                }
+
                 const faceVertices = [];
                 const faceTextures = [];
                 const faceNormals = [];
@@ -89,6 +101,7 @@ function parseOBJ(obj, materialsCode=[]) {
                     triangle.nc = faceNormals[triIndex + 2];
 
                     triangle.material = lastMaterial;
+                    triangle.objectId = lastObjectId;
                 
                     if (!triangle.na || !triangle.nb || !triangle.nc) {
                         let ab = triangle.b.copy().subtract(triangle.a);
@@ -103,7 +116,6 @@ function parseOBJ(obj, materialsCode=[]) {
                     result.triangles.push(triangle);
                     if(lastObject) result.objects[lastObject].push(result.triangles.length - 1)
                 }
-
                 break;
             default:
                 break;

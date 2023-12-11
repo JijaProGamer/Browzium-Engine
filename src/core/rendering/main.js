@@ -90,9 +90,9 @@ class RenderingManager {
 
     renderTextureDepth;
     renderTextureReadDepth;
-
     renderTextureAlbedo;
     renderTextureReadAlbedo;
+    renderTextureObject;
 
     renderTextureHistory;
     renderTextureHistoryRead;
@@ -192,6 +192,12 @@ class RenderingManager {
         this.renderTextureAlbedo = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba16float',
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+        });
+
+        this.renderTextureObject = this.device.createTexture({
+            size: { width: this.canvas.width, height: this.canvas.height },
+            format: 'r32float',
             usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
         });
 
@@ -316,6 +322,10 @@ class RenderingManager {
                 {
                     binding: 3,
                     resource: this.renderTextureAlbedo.createView(),
+                },
+                {
+                    binding: 4,
+                    resource: this.renderTextureObject.createView(),
                 }
             ],
         });
@@ -415,6 +425,16 @@ class RenderingManager {
                     storageTexture: {
                         access: "write-only",
                         format: "rgba16float",
+                        viewDimension: "2d",
+                        multisampled: false,
+                    }
+                },
+                {
+                    binding: 4,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    storageTexture: {
+                        access: "write-only",
+                        format: "r32float",
                         viewDimension: "2d",
                         multisampled: false,
                     }
@@ -834,7 +854,7 @@ class RenderingManager {
             // Other data
 
             triangleData[locationStart + 24] = materialsKeys.indexOf(triangle.material);
-            triangleData[locationStart + 25] = 0;
+            triangleData[locationStart + 25] = triangle.objectId;
             triangleData[locationStart + 26] = 0;
             triangleData[locationStart + 27] = 0;
         }

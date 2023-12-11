@@ -14,7 +14,7 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 8;
+const maxDepth: i32 = 5;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -69,6 +69,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var diffuse = BRDF * cos_theta / p;
 
         if(applyRotation == true){
+            output.object_id = intersection.object_id;
             output.albedo = (diffuse + emittance) * fistColor;
             diffuse = vec3<f32>(1, 1, 1);
             emittance = vec3<f32>(0, 0, 0);
@@ -77,6 +78,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         }
 
         if(depth == 0) {
+            output.object_id = intersection.object_id;
             output.albedo = diffuse + emittance;
             fistColor = output.albedo;
             diffuse = vec3<f32>(1, 1, 1);
