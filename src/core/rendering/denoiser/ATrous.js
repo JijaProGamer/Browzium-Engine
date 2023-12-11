@@ -1,7 +1,7 @@
 class ATrousDenoiser {
-    levels = 10;
+    levels = 5;
     levelSteps = []//[1, 3, 5, 8, 11]
-    colorStrenght = 1;
+    colorStrenght = 1.0;
     normalStrenght = 0.5;
     depthStrenght = 0.1;
 
@@ -203,7 +203,7 @@ class ATrousDenoiser {
             this.normalStrenght,
             this.depthStrenght,
 
-            this.levelSteps[level] || Math.pow(2, level),
+            this.levelSteps[level - 1] || Math.pow(2, level),
             isLastStep,
         ])
 
@@ -229,6 +229,7 @@ class ATrousDenoiser {
         // copy output
 
         if (level < this.levels) {
+            console.log(level, this.levels)
             const copyEncoder = this.parent.device.createCommandEncoder();
 
             copyEncoder.copyTextureToTexture(

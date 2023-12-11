@@ -59,6 +59,7 @@ struct Pixel {
     velocity: vec2<f32>,
     depth: f32,
     object_id: f32,
+    intersection: vec3<f32>,
 }
 
 struct TemportalData {
@@ -532,12 +533,16 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             if (!intersection.hit) { 
                 intersection.depth = 999999; 
                 intersection.normal = -realDirection; 
+                output.intersection = 99999.0 * realDirection;
                 material.color = NoHit(realDirection, realStart);
+                output.object_id = -1;
             }
 
             output.normal = intersection.normal;
             output.depth = intersection.depth;
+            output.intersection = intersection.position;
             output.albedo = material.color;
+            output.object_id = intersection.object_id;
         }
 
         if (!intersection.hit) {
@@ -679,6 +684,7 @@ fn computeMain(
     var avarageColor: vec4<f32>;
     var avarageAlbedo: vec3<f32>;
     var avarageNormal: vec3<f32>;
+    var averageIntersection: vec3<f32>;
     var avarageDepth: f32;
 
     var maxRays: f32 = 1;
@@ -694,6 +700,8 @@ fn computeMain(
         avarageAlbedo += pixelData.pixel.albedo;
         avarageNormal += pixelData.pixel.normal;
         avarageDepth += pixelData.pixel.depth;
+
+        averageIntersection += pixelData.pixel.intersection;
         object = pixelData.pixel.object_id;
     }
 
@@ -703,6 +711,6 @@ fn computeMain(
     textureStore(image_color_texture, global_invocation_id.xy, avarageColor / maxRays);
     textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
     textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));
-    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(avarageDepth / maxRays, 0, 0, 0));
+    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(averageIntersection / maxRays, avarageDepth / maxRays));
     textureStore(image_object_texture, global_invocation_id.xy, vec4<f32>(object, 0, 0, 0));
 }

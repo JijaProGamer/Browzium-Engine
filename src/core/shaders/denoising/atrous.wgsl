@@ -30,11 +30,11 @@ const offset = array<vec2<f32>, 25>(
 );
 
 const kernel = array<f32, 25>(
-    0.0120, 0.0261, 0.0338, 0.0261, 0.0120,
-    0.0261, 0.0568, 0.0731, 0.0568, 0.0261,
-    0.0338, 0.0731, 0.0944, 0.0731, 0.0338,
-    0.0261, 0.0568, 0.0731, 0.0568, 0.0261,
-    0.0120, 0.0261, 0.0338, 0.0261, 0.0120
+    1.0 / 256.0, 1.0 / 64.0, 3.0 / 128.0, 1.0 / 64.0, 1.0 / 256.0,
+    1.0 / 64.0, 1.0 / 16.0, 3.0 / 32.0, 1.0 / 16.0, 1.0 / 64.0,
+    3.0 / 128.0, 3.0 / 32.0, 9.0 / 64.0, 3.0 / 32.0, 3.0 / 128.0,
+    1.0 / 64.0, 1.0 / 16.0, 3.0 / 32.0, 1.0 / 16.0, 1.0 / 64.0,
+    1.0 / 256.0, 1.0 / 64.0, 3.0 / 128.0, 1.0 / 64.0, 1.0 / 256.0
 );
 
 @group(0) @binding(0) var<storage, read> inputData: InputGlobalData;
@@ -58,50 +58,45 @@ fn computeMain(
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>
 ) {
-    //var pixel = textureLoad(normalMap, global_invocation_id.xy, 0);
-    //var pixel = textureLoad(depthMap, global_invocation_id.xy, 0) / 10;
-    //pixel.g = inputFilteringData.c_phi;
-
-    //textureStore(output, global_invocation_id.xy, pixel);
-    
     var accumulatedColor = vec4<f32>(0.0);
     
-    var currentPixelColor = textureLoad(colorMap, global_invocation_id.xy, 0);
-    var currentPixelNormal = textureLoad(normalMap, global_invocation_id.xy, 0);
-    var currentPixelDepth = textureLoad(depthMap, global_invocation_id.xy, 0);
-    var currentPixelObject = textureLoad(objectMap, global_invocation_id.xy, 0).x;
+    let cval = textureLoad(colorMap, global_invocation_id.xy, 0);
+    let nval = textureLoad(normalMap, global_invocation_id.xy, 0);
+    let pval = textureLoad(depthMap, global_invocation_id.xy, 0);
+    let oval = textureLoad(objectMap, global_invocation_id.xy, 0).x;
+    
+    var cum_w = 0.0;
+    for(var i: i32 = 0; i < 25; i++)
+    {
+        let uv = vec2<u32>(vec2<f32>(global_invocation_id.xy) + offset[i] * inputFilteringData.stepwidth);
+        let neighborObject = textureLoad(objectMap, uv, 0).x;
+        if(neighborObject != oval){ continue; }
+        
+        let ctmp = textureLoad(colorMap, uv, 0);
+        if(ctmp.w < 0 || isNan(ctmp.x) || isNan(ctmp.y) || isNan(ctmp.z) || isNan(ctmp.w)){ continue; }
 
-    var totalWeight: f32 = 0.0;
-
-    for (var i: i32 = 0; i < 25; i = i + 1) {
-        let neighborUV = global_invocation_id.xy + vec2<u32>(offset[i] * inputFilteringData.stepwidth);
-        let neighborObject = textureLoad(objectMap, neighborUV, 0).x;
-        //if(neighborObject != currentPixelObject){ continue; }
-
-        var neighborColor: vec4<f32> = textureLoad(colorMap, neighborUV, 0);
-
-        var colorDifference: vec4<f32> = currentPixelColor - neighborColor;
-        var colorDistanceSquared: f32 = dot(colorDifference, colorDifference);
-        var colorWeight: f32 = min(exp(-colorDistanceSquared / inputFilteringData.c_phi), 1.0);
-
-        var normalDifference: vec4<f32> = currentPixelNormal - textureLoad(normalMap, neighborUV, 0);
-        var normalDistanceSquared: f32 = max(dot(normalDifference, normalDifference) / (inputFilteringData.stepwidth * inputFilteringData.stepwidth), 0.0);
-        var normalWeight: f32 = min(exp(-normalDistanceSquared / inputFilteringData.n_phi), 1.0);
-
-        var depthDifference: f32 = currentPixelDepth.x - textureLoad(depthMap, neighborUV, 0).x;
-        var depthDistanceSquared: f32 = depthDifference * depthDifference;
-        var depthWeight: f32 = min(exp(-depthDistanceSquared / inputFilteringData.p_phi), 1.0);
-
-        var weight: f32 = colorWeight * normalWeight * depthWeight;
-        var color = neighborColor * weight * kernel[i];
-
-        if(!(isNan(color.x) || isNan(color.y) || isNan(color.z) || isNan(color.w))){
-            accumulatedColor = accumulatedColor + color;
-            totalWeight = totalWeight + weight * kernel[i];
-        }
+        var t = cval - ctmp;
+        var dist2 = dot(t,t);
+        let c_w = min(exp(-(dist2)/inputFilteringData.c_phi), 1.0);
+        
+        let ntmp = textureLoad(normalMap, uv, 0);
+        t = nval - ntmp;
+        dist2 = max(dot(t,t), 0.0);
+        let n_w = min(exp(-(dist2)/inputFilteringData.n_phi), 1.0);
+        
+        let ptmp = textureLoad(depthMap, uv, 0);
+        t.w = 0;
+        t = pval - ptmp;
+        dist2 = dot(t,t);
+        let p_w = min(exp(-(dist2)/inputFilteringData.p_phi), 1.0);
+        
+        let weight = c_w * n_w * p_w;
+        accumulatedColor += ctmp * weight * kernel[i];
+        cum_w += weight * kernel[i];
     }
 
-    accumulatedColor = accumulatedColor / totalWeight;
+    accumulatedColor /= cum_w;
+    //accumulatedColor *= 2.56;
 
     if (inputFilteringData.maxStep == 1) {
         let originalAlpha = accumulatedColor.a;

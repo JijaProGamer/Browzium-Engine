@@ -42,12 +42,16 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             if (!intersection.hit) { 
                 intersection.depth = 999999; 
                 intersection.normal = -realDirection; 
+                output.intersection = 99999.0 * realDirection;
                 material.color = NoHit(realDirection, realStart);
+                output.object_id = -1;
             }
 
             output.normal = intersection.normal;
             output.depth = intersection.depth;
+            output.intersection = intersection.position;
             output.albedo = material.color;
+            output.object_id = intersection.object_id;
         }
 
         if (!intersection.hit) {
