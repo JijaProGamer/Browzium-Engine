@@ -8,8 +8,12 @@ fn computeMain(
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>
 ) {
-    var color = textureLoad(colorMap, global_invocation_id.xy, 0);
+    /*var color = textureLoad(colorMap, global_invocation_id.xy, 0);
     var albedo = textureLoad(albedoMap, global_invocation_id.xy, 0);
 
-    textureStore(output, global_invocation_id.xy, color * albedo);
+    textureStore(output, global_invocation_id.xy, color * albedo);*/
+
+    var color = textureLoad(colorMap, global_invocation_id.xy, 0);
+
+    textureStore(output, global_invocation_id.xy, color);
 }
