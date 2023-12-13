@@ -50,7 +50,7 @@ fn calculatePixelColor(
     var pixelModifier = randomPoint2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
-    var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
+    var realPixel = pixel + pixelModifier.output / 2;
 
     let direction = calculatePixelDirection(realPixel);
     let start = inputData.CameraPosition;

@@ -39,6 +39,13 @@ class Vector3 {
         return this;
     }
 
+    multiply(vector){
+        this.x *= vector.x;
+        this.y *= vector.y;
+        this.z *= vector.z;
+        return this;
+    }
+
     multiplyScalar(scalar) {
         this.x *= scalar;
         this.y *= scalar;
@@ -84,6 +91,10 @@ class Vector3 {
         const y = this.z * vector.x - this.x * vector.z;
         const z = this.x * vector.y - this.y * vector.x;
         return new Vector3(x, y, z);
+    }
+
+    static dot(v1, v2){
+        return v1.dot(v2);
     }
 
     static add(v1, v2) {

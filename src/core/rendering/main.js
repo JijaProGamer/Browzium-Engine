@@ -1,7 +1,7 @@
 //import Denoiser from "./denoiser.js"
 
 import Vector3 from "../classes/Vector3";
-import Octree from "../classes/octree";
+import BVHTree from "../classes/bvh";
 
 import ATrousDenoiser from "./denoiser/ATrous";
 import emptyDenoiser from "./denoiser/none";
@@ -46,7 +46,7 @@ let materialStride = 4 + 1 + 1 + (1 * 2);
     padding3: f32
 */
 
-let octreeBranchStride = 4 + 4 + 8 + 16;
+let octreeBranchStride = 4 + 4 + 4 + 8;
 
 function getNext2Power(n) {
     return Math.pow(2, Math.ceil(Math.log2(n + 1)));
@@ -176,7 +176,7 @@ class RenderingManager {
             format: 'rgba16float',
             usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
         });
-        
+
         this.renderTextureNormal = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba16float',
@@ -208,7 +208,7 @@ class RenderingManager {
         });
 
         this.renderTextureHistoryRead = this.device.createTexture({
-            label: "renderTextureHistoryRead",          
+            label: "renderTextureHistoryRead",
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba32float',
             usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
@@ -294,7 +294,7 @@ class RenderingManager {
                 },
                 {
                     binding: 1,
-                    resource:this.renderTextureHistory.createView(),
+                    resource: this.renderTextureHistory.createView(),
                 },
                 {
                     binding: 2,
@@ -702,32 +702,31 @@ class RenderingManager {
 
     CreateOctree(triangleArray) {
         if (triangleArray.length == 0) {
-            return [new Octree(new Vector3(0, 0, 0), 0, [])];
+            return [new BVHTree(new Vector3(0, 0, 0), new Vector3(0, 0, 0), [])];
         }
 
         /*let octree = new Octree()
         let branches = []*/
 
-        let octreeSize = Octree.calculateOctreeSize(triangleArray)
-        let octree = new Octree(octreeSize.center, octreeSize.halfSize, triangleArray)
+        let octreeSize = BVHTree.calculateTreeSize(triangleArray)
+        let octree = new BVHTree(octreeSize.minPosition, octreeSize.maxPosition, triangleArray)
 
         let branches = []
         function getBranches(leaf) {
             branches.push(leaf)
 
-            for (let childIndex = 0; childIndex < 8; childIndex++) {
-                let child = leaf.children[childIndex]
-                if (!child) {
-                    return;
-                }
+            if (leaf.child1) {
+                getBranches(leaf.child1)
+                leaf.child1 = branches.length;
+            }
 
-                leaf.children[childIndex] = branches.length;
-                getBranches(child)
+            if (leaf.child2) {
+                getBranches(leaf.child2)
+                leaf.child2 = branches.length;
             }
         }
 
         getBranches(octree)
-        console.log(branches)
 
         return branches
     }
@@ -751,33 +750,41 @@ class RenderingManager {
             }
         }
 
+        console.log(octree)
+
         for (let branchIndex = 0; branchIndex < octree.length; branchIndex++) {
             let octreeBranch = octree[branchIndex]
             let locationStart = octreeBranchStride * branchIndex;
 
-            // Center
+            // minPosition
 
-            octreeData[locationStart + 0] = octreeBranch.center.x;
-            octreeData[locationStart + 1] = octreeBranch.center.y;
-            octreeData[locationStart + 2] = octreeBranch.center.z;
+            octreeData[locationStart + 0] = octreeBranch.minPosition.x;
+            octreeData[locationStart + 1] = octreeBranch.minPosition.y;
+            octreeData[locationStart + 2] = octreeBranch.minPosition.z;
             octreeData[locationStart + 3] = 0;
 
-            // Half Size
+            // maxPosition
 
-            octreeData[locationStart + 4] = octreeBranch.halfSize;
+            octreeData[locationStart + 4] = octreeBranch.maxPosition.x;
+            octreeData[locationStart + 5] = octreeBranch.maxPosition.x;
+            octreeData[locationStart + 6] = octreeBranch.maxPosition.x;
+            octreeData[locationStart + 7] = 0;
 
             // Children
 
-            for (let i = 0; i < 8; i++) {
-                octreeData[locationStart + 5 + i] = isNaN(octreeBranch.children[i]) ? -1 : octreeBranch.children[i];
-            }
+            octreeData[locationStart + 8] = isNaN(octreeBranch.child1) ? -1 : octreeBranch.child1;
+            octreeData[locationStart + 9] = isNaN(octreeBranch.child2) ? -1 : octreeBranch.child2;
+            octreeData[locationStart + 10] = 0;
+            octreeData[locationStart + 11] = 0;
 
             // Triangles
 
-            for (let i = 0; i < 16; i++) {
-                octreeData[locationStart + 5 + 16 + i] = isNaN(octreeBranch.objects[i]) ? -1 : octreeBranch.objects[i];
+            for (let i = 0; i < 8; i++) {
+                octreeData[locationStart + 12 + i] = isNaN(octreeBranch.objects[i]) ? -1 : octreeBranch.objects[i];
             }
         }
+
+        console.log(octreeData)
 
         this.device.queue.writeBuffer(this.computeOctreeTreeData, 0, octreeData, 0, octreeData.length);
     }
@@ -884,7 +891,7 @@ class RenderingManager {
             this.UpdateDataBuffer = true;
         }
 
-        if(this.Camera.wasCameraUpdated){
+        if (this.Camera.wasCameraUpdated) {
             this.staticFrames = 0;
         }
 
@@ -898,7 +905,7 @@ class RenderingManager {
 
         // denoise
 
-        if(!this.denoisersBuilt[this.denoiser]){
+        if (!this.denoisersBuilt[this.denoiser]) {
             throw new Error(`${this.denoiser} is not a available denoiser.`)
         }
 
@@ -924,8 +931,8 @@ class RenderingManager {
             throw new Error("Filterable 32-bit float textures support is not available");
         }
 
-        this.device = await this.adapter.requestDevice({ 
-            label: "Browzium GPU Device", 
+        this.device = await this.adapter.requestDevice({
+            label: "Browzium GPU Device",
             requiredFeatures: [
                 "float32-filterable"
             ],
@@ -960,7 +967,7 @@ class RenderingManager {
                 this.denoisersBuilt[denoiserName].makePipelines()
             }
         }
-        
+
         //this.UpdateData();
 
         //await this.#Denoiser.Init()

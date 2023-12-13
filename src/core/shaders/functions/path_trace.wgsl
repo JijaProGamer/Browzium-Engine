@@ -14,9 +14,9 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 5;
+const maxDepth: i32 = 2;
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var realDirection = direction;
@@ -42,9 +42,9 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             if (!intersection.hit) { 
                 intersection.depth = 999999; 
                 intersection.normal = -realDirection; 
-                output.intersection = 99999.0 * realDirection;
+                intersection.position = 99999.0 * realDirection;
                 material.color = NoHit(realDirection, realStart);
-                output.object_id = -1;
+                intersection.object_id = -1;
             }
 
             output.normal = intersection.normal;
@@ -108,6 +108,24 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     //if(true){
     if(hit_light){
         output.noisy_color = vec4<f32>(accumulatedColor, 1);
+    }
+
+    return output;
+}*/
+
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+    var output: Pixel;
+
+    output.albedo = vec3<f32>(1);
+
+    if (!hit_octree(start, direction, inputTreeParts[0])) {
+        output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
+    } else {
+        for(var i = 1; i < 7; i++){
+            if(hit_octree(start, direction, inputTreeParts[i])){
+                output.noisy_color = vec4<f32>((f32(i) - 1) / 7, 1, 0, 1);
+            }
+        }
     }
 
     return output;

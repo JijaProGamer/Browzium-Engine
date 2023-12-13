@@ -73,16 +73,17 @@ struct TraceOutput {
 }
 
 struct TreePart {
-    center: vec3<f32>,
+    minPosition: vec3<f32>,
     padding0: f32,
-
-    halfSize: f32,
-    children: array<f32, 8>,
-    triangles: array<f32, 16>,
+    maxPosition: vec3<f32>,
     padding1: f32,
 
+    child1: f32,
+    child2: f32,
     padding2: f32,
-    padding3: f32
+    padding3: f32,
+
+    triangles: array<f32, 8>,
 }
 
 struct OutputTextureData {
@@ -288,6 +289,21 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 }
 
 fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> bool {
+    let invD = 1 / ray_direction;
+	let t0s = (box.minPosition - ray_origin) * invD;
+  	let t1s = (box.maxPosition - ray_origin) * invD;
+    
+  	let tsmaller = min(t0s, t1s);
+    let tbigger  = max(t0s, t1s);
+    
+    let tmin = max(tsmaller[0], max(tsmaller[1], tsmaller[2]));
+    let tmax = min(tbigger[0], min(tbigger[1], tbigger[2]));
+
+	return tmin < tmax && tmax > 0;
+}
+
+/*
+fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> bool {
     var half_extent: vec3<f32> = vec3<f32>(box.halfSize, box.halfSize, box.halfSize);
     var box_min: vec3<f32> = box.center - half_extent;
     var box_max: vec3<f32> = box.center + half_extent;
@@ -302,9 +318,11 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
     var t_exit: f32 = min(min(t2.x, t2.y), t2.z);
 
     return t_enter <= t_exit;
-}
+}*/
 
-fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+
+
+/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
 
@@ -321,9 +339,9 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
     }
 
     return result;
-}
+}*/
 
-/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
 
@@ -344,8 +362,8 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
         let hit = hit_octree(ray_origin, ray_direction, currentBox);
 
         if (hit) {
-            if (currentBox.children[0] == -1.0) {
-                for (var i: f32 = 0; i < 16; i = i + 1) {
+            if (currentBox.child1 == -1.0) {
+                for (var i: f32 = 0; i < 8; i = i + 1) {
                     let triIndex = i32(currentBox.triangles[i32(i)]);
                     if(triIndex == -1) { break; }
 
@@ -362,21 +380,26 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
                 continue;
             }
 
-            for (var i: i32 = 0; i < 8; i = i + 1) {
-                let childIndex = currentBox.children[i];
-                let childNode = inputTreeParts[i32(childIndex)];
+            let childIndex1 = currentBox.child1;
+            let childNode1 = inputTreeParts[i32(childIndex1)];
 
-                if (hit_octree(ray_origin, ray_direction, childNode)) {
-                    stack[stackIndex] = childNode;
-                    stackIndex++;
-                }
+            if (hit_octree(ray_origin, ray_direction, childNode1)) {
+                stack[stackIndex] = childNode1;
+                stackIndex++;
+            }
+
+            let childIndex2 = currentBox.child2;
+            let childNode2 = inputTreeParts[i32(childIndex2)];
+
+            if (hit_octree(ray_origin, ray_direction, childNode2)) {
+                stack[stackIndex] = childNode2;
+                stackIndex++;
             }
         }
     }
 
-
     return result;
-}*/
+}
 
 fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
     let dotProductA = dot(tri.na, ray_direction);
@@ -505,9 +528,9 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 5;
+const maxDepth: i32 = 2;
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var realDirection = direction;
@@ -533,9 +556,9 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             if (!intersection.hit) { 
                 intersection.depth = 999999; 
                 intersection.normal = -realDirection; 
-                output.intersection = 99999.0 * realDirection;
+                intersection.position = 99999.0 * realDirection;
                 material.color = NoHit(realDirection, realStart);
-                output.object_id = -1;
+                intersection.object_id = -1;
             }
 
             output.normal = intersection.normal;
@@ -602,6 +625,24 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     }
 
     return output;
+}*/
+
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+    var output: Pixel;
+
+    output.albedo = vec3<f32>(1);
+
+    if (!hit_octree(start, direction, inputTreeParts[0])) {
+        output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
+    } else {
+        for(var i = 1; i < 7; i++){
+            if(hit_octree(start, direction, inputTreeParts[i])){
+                output.noisy_color = vec4<f32>((f32(i) - 1) / 7, 1, 0, 1);
+            }
+        }
+    }
+
+    return output;
 }
 
 /*fn getTemporalData(
@@ -650,7 +691,7 @@ fn calculatePixelColor(
     var pixelModifier = randomPoint2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
-    var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
+    var realPixel = pixel + pixelModifier.output / 2;
 
     let direction = calculatePixelDirection(realPixel);
     let start = inputData.CameraPosition;
@@ -667,6 +708,10 @@ fn calculatePixelColor(
     //output.temporalData = calculateTemporalData(realPixel, traceOutput, start, direction);
 
     return output;
+}
+
+fn isNan(num: f32) -> bool {
+    return (bitcast<u32>(num) & 0x7fffffffu) > 0x7f800000u;
 }
 
 @compute @workgroup_size(16, 16, 1) 
@@ -708,6 +753,7 @@ fn computeMain(
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
 
+    if(isNan(avarageColor.x) || isNan(avarageColor.y) || isNan(avarageColor.z) || isNan(avarageColor.w)){ return; }
     textureStore(image_color_texture, global_invocation_id.xy, avarageColor / maxRays);
     textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
     textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));

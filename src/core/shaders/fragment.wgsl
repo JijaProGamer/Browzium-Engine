@@ -69,22 +69,19 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
     //var pixel = imageBuffer[index].noisy_color;
     //var temporalData = temporalBuffer[index];
 
-    /*if(image_history_data.staticFrames == 0){
-        textureStore(image_history, pixelPosition, vec4<f32>(0, 0, 0, 0));
+    if(image_history_data.staticFrames == 0){
+        textureStore(image_history, pixelPosition, pixel);
     } else {
         let w = pixel.w;
 
         let historyPixel = textureLoad(image_history_read, pixelPosition, 0);
-        pixel = mix(historyPixel, pixel, clamp(1 / image_history_data.staticFrames, 0.002, 1));
+        pixel = mix(historyPixel, pixel, 1 / (image_history_data.staticFrames + 1));
 
-        if(w >= 1 && !(isNan(pixel.x) || isNan(pixel.y) || isNan(pixel.z) || isNan(pixel.w))){
-            textureStore(image_history, pixelPosition, pixel);
-        }
-
+        textureStore(image_history, pixelPosition, pixel);
         pixel.w = 1;
-    }*/
+    }
 
-    if(image_history_data.staticFrames == 0){
+    /*if(image_history_data.staticFrames == 0){
         textureStore(image_history, pixelPosition, pixel);
     } else {
         let w = pixel.w;
@@ -97,7 +94,7 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
 
         pixel /= (image_history_data.staticFrames + 1);
         pixel.w = 1;
-    } // Best one so far
+    }*/ // Best one so far
 
     /*if(image_history_data.staticFrames == 0){
         pixel.w = 1;

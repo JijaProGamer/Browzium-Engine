@@ -74,31 +74,49 @@ fn computeMain(
         let uv = vec2<u32>(tempUV);
         let neighborObject = textureLoad(objectMap, uv, 0).x;
         if(neighborObject != oval){ continue; }
-        
-        let ctmp = textureLoad(colorMap, uv, 0);
-        //if(ctmp.w < 1){ continue; }
 
-        /*var t = cval - ctmp;
-        var dist2 = dot(t,t);
-        let c_w = min(exp(-(dist2)/inputFilteringData.c_phi), 1.0);*/
-        
-        let ntmp = textureLoad(normalMap, uv, 0);
-        var t = nval - ntmp;
-        var dist2 = max(dot(t,t), 0.0);
-        let n_w = min(exp(-(dist2)/inputFilteringData.n_phi), 1.0);
-        
-        let ptmp = textureLoad(depthMap, uv, 0);
-        t = pval - ptmp;
-        t.w = 0;
-        dist2 = dot(t,t);
-        let p_w = min(exp(-(dist2)/inputFilteringData.p_phi), 1.0);
-        
-        let weight = /*c_w **/ n_w * p_w;
-        accumulatedColor += ctmp * weight * kernel[i];
-        cum_w += weight * kernel[i];
+        if(inputFilteringData.c_phi == 0){
+            let ctmp = textureLoad(colorMap, uv, 0);
+
+            let ntmp = textureLoad(normalMap, uv, 0);
+            var t = nval - ntmp;
+            var dist2 = max(dot(t,t), 0.0);
+            let n_w = min(exp(-(dist2)/inputFilteringData.n_phi), 1.0);
+            
+            let ptmp = textureLoad(depthMap, uv, 0);
+            t = pval - ptmp;
+            t.w = 0;
+            dist2 = dot(t,t);
+            let p_w = min(exp(-(dist2)/inputFilteringData.p_phi), 1.0);
+            
+            let weight = n_w * p_w;
+            accumulatedColor += ctmp * weight * kernel[i];
+            cum_w += weight * kernel[i];
+        } else {
+            let ctmp = textureLoad(colorMap, uv, 0);
+
+            var t = cval - ctmp;
+            var dist2 = dot(t,t);
+            let c_w = min(exp(-(dist2)/inputFilteringData.c_phi), 1.0);
+            
+            let ntmp = textureLoad(normalMap, uv, 0);
+            t = nval - ntmp;
+            dist2 = max(dot(t,t), 0.0);
+            let n_w = min(exp(-(dist2)/inputFilteringData.n_phi), 1.0);
+            
+            let ptmp = textureLoad(depthMap, uv, 0);
+            t = pval - ptmp;
+            t.w = 0;
+            dist2 = dot(t,t);
+            let p_w = min(exp(-(dist2)/inputFilteringData.p_phi), 1.0);
+            
+            let weight = c_w * n_w * p_w;
+            accumulatedColor += ctmp * weight * kernel[i];
+            cum_w += weight * kernel[i];
+        }
     }
 
-    accumulatedColor /= max(0.0001, cum_w);
+    accumulatedColor /=  cum_w;
     //accumulatedColor *= 2.56;
 
     if(accumulatedColor.a > 0){
@@ -113,6 +131,5 @@ fn computeMain(
     }
 
     //if(isNan(accumulatedColor.x) || isNan(accumulatedColor.y) || isNan(accumulatedColor.z) || isNan(accumulatedColor.w)){ return; }
-
     textureStore(output, global_invocation_id.xy, accumulatedColor);
 }

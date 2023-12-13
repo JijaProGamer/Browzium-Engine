@@ -62,6 +62,21 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 }
 
 fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> bool {
+    let invD = 1 / ray_direction;
+	let t0s = (box.minPosition - ray_origin) * invD;
+  	let t1s = (box.maxPosition - ray_origin) * invD;
+    
+  	let tsmaller = min(t0s, t1s);
+    let tbigger  = max(t0s, t1s);
+    
+    let tmin = max(tsmaller[0], max(tsmaller[1], tsmaller[2]));
+    let tmax = min(tbigger[0], min(tbigger[1], tbigger[2]));
+
+	return tmin < tmax && tmax > 0;
+}
+
+/*
+fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> bool {
     var half_extent: vec3<f32> = vec3<f32>(box.halfSize, box.halfSize, box.halfSize);
     var box_min: vec3<f32> = box.center - half_extent;
     var box_max: vec3<f32> = box.center + half_extent;
@@ -76,9 +91,11 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
     var t_exit: f32 = min(min(t2.x, t2.y), t2.z);
 
     return t_enter <= t_exit;
-}
+}*/
 
-fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+
+
+/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
 
@@ -95,9 +112,9 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
     }
 
     return result;
-}
+}*/
 
-/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
 
@@ -118,8 +135,8 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
         let hit = hit_octree(ray_origin, ray_direction, currentBox);
 
         if (hit) {
-            if (currentBox.children[0] == -1.0) {
-                for (var i: f32 = 0; i < 16; i = i + 1) {
+            if (currentBox.child1 == -1.0) {
+                for (var i: f32 = 0; i < 8; i = i + 1) {
                     let triIndex = i32(currentBox.triangles[i32(i)]);
                     if(triIndex == -1) { break; }
 
@@ -136,21 +153,26 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
                 continue;
             }
 
-            for (var i: i32 = 0; i < 8; i = i + 1) {
-                let childIndex = currentBox.children[i];
-                let childNode = inputTreeParts[i32(childIndex)];
+            let childIndex1 = currentBox.child1;
+            let childNode1 = inputTreeParts[i32(childIndex1)];
 
-                if (hit_octree(ray_origin, ray_direction, childNode)) {
-                    stack[stackIndex] = childNode;
-                    stackIndex++;
-                }
+            if (hit_octree(ray_origin, ray_direction, childNode1)) {
+                stack[stackIndex] = childNode1;
+                stackIndex++;
+            }
+
+            let childIndex2 = currentBox.child2;
+            let childNode2 = inputTreeParts[i32(childIndex2)];
+
+            if (hit_octree(ray_origin, ray_direction, childNode2)) {
+                stack[stackIndex] = childNode2;
+                stackIndex++;
             }
         }
     }
 
-
     return result;
-}*/
+}
 
 fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
     let dotProductA = dot(tri.na, ray_direction);

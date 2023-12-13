@@ -73,16 +73,17 @@ struct TraceOutput {
 }
 
 struct TreePart {
-    center: vec3<f32>,
+    minPosition: vec3<f32>,
     padding0: f32,
-
-    halfSize: f32,
-    children: array<f32, 8>,
-    triangles: array<f32, 16>,
+    maxPosition: vec3<f32>,
     padding1: f32,
 
+    child1: f32,
+    child2: f32,
     padding2: f32,
-    padding3: f32
+    padding3: f32,
+
+    triangles: array<f32, 8>,
 }
 
 struct OutputTextureData {
@@ -106,6 +107,10 @@ struct OutputTextureData {
 @group(3) @binding(0) var<storage, read> image_history_data: OutputTextureData;
 
 #include "functions/calculate_pixel.wgsl"
+
+fn isNan(num: f32) -> bool {
+    return (bitcast<u32>(num) & 0x7fffffffu) > 0x7f800000u;
+}
 
 @compute @workgroup_size(16, 16, 1) 
 fn computeMain(
@@ -146,6 +151,7 @@ fn computeMain(
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
 
+    if(isNan(avarageColor.x) || isNan(avarageColor.y) || isNan(avarageColor.z) || isNan(avarageColor.w)){ return; }
     textureStore(image_color_texture, global_invocation_id.xy, avarageColor / maxRays);
     textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
     textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));

@@ -9,6 +9,8 @@ class Triangle {
     nb = new Vector3(0, 0, 0);
     nc = new Vector3(0, 0, 0);
 
+    t = new Vector3(0, 0, 0); // tangent
+
     material = "default";
     objectId = 0;
 }

@@ -1,5 +1,7 @@
 import Triangle from "../../core/classes/Triangle.js";
 import Vector3 from "../../core/classes/Vector3.js";
+import Vector2 from "../../core/classes/Vector2.js";
+
 import { Material } from "../../core/classes/Material.js";
 
 import { parseMAT } from "./MATParser.js";
@@ -102,16 +104,18 @@ function parseOBJ(obj, materialsCode=[], options={}) {
 
                     triangle.material = lastMaterial;
                     triangle.objectId = lastObjectId;
+
+                    let ab = triangle.b.copy().subtract(triangle.a);
+                    let ac = triangle.c.copy().subtract(triangle.a);
+                    let tangent = ab.cross(ac).normalize();
                 
                     if (!triangle.na || !triangle.nb || !triangle.nc) {
-                        let ab = triangle.b.copy().subtract(triangle.a);
-                        let ac = triangle.c.copy().subtract(triangle.a);
-                        let normal = ab.cross(ac).normalize();
-                
-                        triangle.na = normal;
-                        triangle.nb = normal;
-                        triangle.nc = normal;
+                        triangle.na = tangent;
+                        triangle.nb = tangent;
+                        triangle.nc = tangent;
                     }
+
+                    triangle.t = tangent;
                 
                     result.triangles.push(triangle);
                     if(lastObject) result.objects[lastObject].push(result.triangles.length - 1)
