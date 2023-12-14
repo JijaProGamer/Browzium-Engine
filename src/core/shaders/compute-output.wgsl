@@ -322,7 +322,7 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
 
 
 
-/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
 
@@ -339,9 +339,9 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
     }
 
     return result;
-}*/
+}
 
-fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
 
@@ -399,25 +399,27 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
     }
 
     return result;
-}
+}*/
 
-fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
+fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {    
     let dotProductA = dot(tri.na, ray_direction);
     let dotProductB = dot(tri.nb, ray_direction);
     let dotProductC = dot(tri.nc, ray_direction);
     
     return dotProductA < 0.0 && dotProductB < 0.0 && dotProductC < 0.0;
 }
-fn hash(x: u32) -> u32 {
-    var output: u32 = x;
+fn hash(input: u32) -> u32 {
+    var x = input;
 
-    output = output + (output << 10u);
-    output = output ^ (output >> 6u);
-    output = output + (output << 3u);
-    output = output ^ (output >> 11u);
-    output = output + (output << 15u);
+    x ^= x >> 17;
+    x *= 0xed5ad4bb;
+    x ^= x >> 11;
+    x *= 0xac4c1b51;
+    x ^= x >> 15;
+    x *= 0x31848bab;
+    x ^= x >> 14;
     
-    return output;
+    return x;
 }
 
 fn floatConstruct(m: u32) -> f32 {
@@ -431,6 +433,17 @@ fn floatConstruct(m: u32) -> f32 {
     return f - 1.0;
 }
 
+fn inverseFloatConstruct(f: f32) -> u32 {
+    let ieeeMantissa: u32 = 0x007FFFFFu;
+    let ieeeOne: u32 = 0x3F800000u;
+
+    let fBits: u32 = bitcast<u32>(f);
+    let mBits: u32 = fBits & ieeeMantissa;
+
+    let mantissaWithImplicitBit: u32 = mBits | ieeeOne;
+    return mantissaWithImplicitBit;
+}
+
 struct Random3Vec3Output {
     output: vec3<f32>,
     seed: f32
@@ -441,13 +454,17 @@ struct Random3Vec2Output {
     seed: f32
 };
 
+fn random(seed: f32) -> f32 {
+    return floatConstruct(hash(inverseFloatConstruct(seed)));
+}
+
 fn randomVec2(seed: f32, vec: vec2<f32>) -> f32 {
     var vector = vec3<f32>(seed, vec);
 
     vector = fract(vector * 0.75318531);
     vector += dot(vector, vector.zyx + .4143);
 
-    return fract((vector.x * .2144 + vector.y / .19153) * vector.z / (vector.x*vector.x));
+    return random(vector.x + vector.y + vector.z);
 }
 
 fn random2Vec2(seed: f32, vec: vec2<f32>) -> Random3Vec2Output {
@@ -456,11 +473,14 @@ fn random2Vec2(seed: f32, vec: vec2<f32>) -> Random3Vec2Output {
 
     vector = fract(vector * vec3<f32>(0.1031, 0.1030, 0.0973));
     vector += dot(vector, vector.yzx + 33.33);
+
     var outputVector = fract((vector.xx + vector.yz) * vector.zy) - vec2<f32>(0.5);
+
+    outputVector = vec2<f32>(random(outputVector.x), random(outputVector.y)); // tap tap ingerasi
 
     output.seed = outputVector.y + outputVector.x / .43145 + seed * 2.634145;
     output.output = outputVector;
-
+    
     return output;
 }
 
@@ -470,11 +490,15 @@ fn random3Vec3(seed: f32, vec: vec3<f32>) -> Random3Vec3Output {
 
     vector = fract(vector * vec4<f32>(.9898, 78.233, 43.094, 94.457));
     vector += dot(vector, vector.wzxy + 33.33);
-    vector = fract((vector.xxyz + vector.yzzw) * vector.zywx) - vec4<f32>(0.5);
+
+    vector = vec4<f32>(random(vector.x), random(vector.y), random(vector.z), random(vector.w)); // tap tap ingerasi
+    vector = fract((vector.xxyz + vector.yzzw) * vector.zywx);
+
+    vector -= vec4<f32>(0.5);
 
     output.seed = vector.y * seed * .65376464 + vector.x - vector.z * vector.w;
     output.output = vector.wxz;
-
+    
     return output;
 }
 
@@ -492,28 +516,30 @@ fn randomPoint2(seed: f32, position: vec2<f32>) -> Random3Vec2Output {
 
 fn randomPointInHemisphere(seed: f32, normal: vec3<f32>, position: vec3<f32>) -> Random3Vec3Output {
     var randomVec: Random3Vec3Output;
-    var randomiser: f32 = seed;
-    var tries: i32 = 0;
+    randomVec.seed = seed;
 
-    while (true) {
-        randomVec = randomPoint(randomiser, position);
-        randomiser = randomVec.seed;
-        tries += 1;
+    var r1: f32 = random(seed);
+    var r2: f32 = random(r1 * seed * random(position.x / position.y + position.z * 33.33));
 
-        if (length(randomVec.output) <= 1.0 || tries > 10) {
-            randomVec.output = normalize(randomVec.output);
-            randomVec.seed = randomiser;
-            break;
-        }
-    }
+    var phi: f32 = 2.0 * 3.141592653589793 * r1;
+    var cosTheta: f32 = sqrt(1.0 - r2);
+    var sinTheta: f32 = sqrt(r2);
 
-    if (dot(randomVec.output, normal) < 0.0) {
-        randomVec.output = -randomVec.output;
+    var x: f32 = cos(phi) * sinTheta;
+    var y: f32 = cosTheta;
+    var z: f32 = sin(phi) * sinTheta;
+
+    //var hemisphereSample: vec3<f32> = normalize(vec3<f32>(x - 0.5, y - 0.5, z - 0.5));
+    var hemisphereSample: vec3<f32> = normalize(vec3<f32>(x, y, z));
+
+    if (dot(hemisphereSample, normal) >= 0.0) {
+        randomVec.output = hemisphereSample;
+    } else {
+        randomVec.output = -hemisphereSample;
     }
 
     return randomVec;
 }
-
 
 fn NoHit(
     direction: vec3<f32>, 
@@ -528,9 +554,10 @@ fn NoHit(
 }
 
 
-const maxDepth: i32 = 2;
+const maxDepth: i32 = 5;
+const russianRuleteProbability = 1.0 / 5.0;
 
-/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var realDirection = direction;
@@ -551,6 +578,9 @@ const maxDepth: i32 = 2;
         var intersection = get_ray_intersection(realStart, realDirection);
         var material = intersection.material;
         var emittance = material.color * material.emittance;
+
+        let isSpecular = random(pixelHash);
+        pixelHash /= isSpecular;
 
         if(depth == 0 || applyRotation == true){
             if (!intersection.hit) { 
@@ -574,17 +604,41 @@ const maxDepth: i32 = 2;
             break;
         }
 
-        let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
-        let reflected = (realDirection - 2.0 * dot(realDirection, intersection.normal) * intersection.normal);
-        let newDirection = normalize((1 - material.reflectance) *  newDirectionValue.output + material.reflectance * reflected);
+        var diffuse: vec3<f32>;
+        var newDirection: vec3<f32>;
 
-        pixelHash = newDirectionValue.seed;
+        if(isSpecular <= material.reflectance){
+            let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+            let reflected = (realDirection - 2.0 * dot(realDirection, intersection.normal) * intersection.normal);
+            newDirection = normalize((1 - material.reflectance) *  newDirectionValue.output + material.reflectance * reflected);
+            pixelHash = newDirectionValue.seed;
 
-        let p = 1.0 / (2.0 * 3.141592653589);
-        let cos_theta = dot(newDirection, intersection.normal);
-        
-        var BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
-        var diffuse = BRDF * cos_theta / p;
+            diffuse = (max(1 - material.emittance, 0) * material.color);
+        } else {
+            let terminationRandom = random(pixelHash);
+            pixelHash *= terminationRandom; 
+
+            /*if (terminationRandom < russianRuleteProbability && material.emittance == 0) {
+                accumulatedColor *= 1.0 / (1.0 - terminationRandom);
+                break;
+            }*/
+
+            let russianP = max(accumulatedColor.x, max(accumulatedColor.y, accumulatedColor.z));
+            if (terminationRandom > russianP) {
+                accumulatedColor *= 1.0 / (1.0 - russianP);
+                break;
+            }
+
+            let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+            newDirection = newDirectionValue.output;
+            pixelHash = newDirectionValue.seed;
+
+            let p = 1.0 / (2.0 * 3.141592653589);
+            let cos_theta = dot(newDirection, intersection.normal);
+            
+            var BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
+            diffuse = BRDF * cos_theta / p;
+        }
 
         if(applyRotation == true){
             output.object_id = intersection.object_id;
@@ -625,25 +679,27 @@ const maxDepth: i32 = 2;
     }
 
     return output;
-}*/
+}
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
+    output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
+    //output.noisy_color = vec4<f32>(direction.y, 1, 1, 1);
     output.albedo = vec3<f32>(1);
 
-    if (!hit_octree(start, direction, inputTreeParts[0])) {
-        output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
+    /*if (!hit_octree(start, direction, inputTreeParts[0])) {
+        output.albedo = NoHit(direction, start);
     } else {
-        for(var i = 1; i < 7; i++){
+        for(var i = 0; i < 11; i++){
             if(hit_octree(start, direction, inputTreeParts[i])){
-                output.noisy_color = vec4<f32>((f32(i) - 1) / 7, 1, 0, 1);
+                output.albedo = vec3<f32>(f32(i) / 11, 1, 0);
             }
         }
-    }
+    }*/
 
     return output;
-}
+}*/
 
 /*fn getTemporalData(
     pixel: vec2<f32>
@@ -688,7 +744,7 @@ fn calculatePixelColor(
 ) -> TraceOutput {
     var pixelHash = randomVec2(initialPixelHash, pixel);
 
-    var pixelModifier = randomPoint2(pixelHash, pixel);
+    var pixelModifier = random2Vec2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
     var realPixel = pixel + pixelModifier.output / 2;

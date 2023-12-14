@@ -39,39 +39,60 @@ class BVHTree {
     }
 
     subdivide(triangleArray) {
-        /*let minPositionChild1
-        let minPositionChild2
-
-        let maxPositionChild1
-        let maxPositionChild2
-
-        this.child1 = new BVHTree(minPositionChild1, maxPositionChild1, triangleArray);
-        this.child2 = new BVHTree(minPositionChild2, maxPositionChild2, triangleArray);*/
-
         const size = Vector3.subtract(this.maxPosition, this.minPosition);
-
-        // Find the axis with the maximum extent
         const splitAxis = size.x > size.y ? (size.x > size.z ? 'x' : 'z') : (size.y > size.z ? 'y' : 'z');
-
-        // Sort triangles along the selected axis
+    
+        // Sort triangles along the split axis
         const sortedTriangles = triangleArray.slice().sort((a, b) => {
             return a.getCentroid()[splitAxis] - b.getCentroid()[splitAxis];
         });
-
-        // Calculate the midpoint to split the triangles
-        const midpoint = Math.floor(sortedTriangles.length / 2);
-
+    
+        const midpoint = this.findMidpoint(sortedTriangles, splitAxis);
+    
         const trianglesChild1 = sortedTriangles.slice(0, midpoint);
         const trianglesChild2 = sortedTriangles.slice(midpoint);
-
-        const minPositionChild1 = this.minPosition;
-        const maxPositionChild1 = { ...this.maxPosition, [splitAxis]: sortedTriangles[midpoint - 1].getCentroid()[splitAxis] };
-
-        const minPositionChild2 = { ...this.minPosition, [splitAxis]: sortedTriangles[midpoint].getCentroid()[splitAxis] };
-        const maxPositionChild2 = this.maxPosition;
-
+    
+        // Create child BVH nodes
+        const minPositionChild1 = this.minPosition.copy();
+        const maxPositionChild1 = this.maxPosition.copy();
+        maxPositionChild1[splitAxis] = sortedTriangles[midpoint - 1].getCentroid()[splitAxis];
+    
+        const minPositionChild2 = this.minPosition.copy();
+        minPositionChild2[splitAxis] = sortedTriangles[midpoint].getCentroid()[splitAxis];
+        const maxPositionChild2 = this.maxPosition.copy();
+    
         this.child1 = new BVHTree(minPositionChild1, maxPositionChild1, trianglesChild1);
         this.child2 = new BVHTree(minPositionChild2, maxPositionChild2, trianglesChild2);
+    }
+
+    
+    findMidpoint(sortedTriangles, splitAxis) {
+        const totalTriangles = sortedTriangles.length;
+
+        if (totalTriangles <= 1) {
+            return 0;
+        }
+    
+        let sumTrianglesChild1 = sortedTriangles[0].getCentroid()[splitAxis];
+        let sumTrianglesChild2 = 0;
+    
+        for (let i = 1; i < totalTriangles; i++) {
+            sumTrianglesChild2 += sortedTriangles[i].getCentroid()[splitAxis];
+        }
+    
+        for (let i = 1; i < totalTriangles; i++) {
+            const avgTrianglesChild1 = sumTrianglesChild1 / i;
+            const avgTrianglesChild2 = sumTrianglesChild2 / (totalTriangles - i);
+    
+            if (avgTrianglesChild1 >= avgTrianglesChild2) {
+                return i;
+            }
+    
+            sumTrianglesChild1 += sortedTriangles[i].getCentroid()[splitAxis];
+            sumTrianglesChild2 -= sortedTriangles[i].getCentroid()[splitAxis];
+        }
+    
+        return Math.floor(totalTriangles / 2);
     }
 
     triangleIntersectsLeaf(triangle) {

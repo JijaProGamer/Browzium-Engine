@@ -13,6 +13,16 @@ class Triangle {
 
     material = "default";
     objectId = 0;
+
+    getCentroid() {
+        const centroid = new Vector3(
+            (this.a.x + this.b.x + this.c.x) / 3,
+            (this.a.y + this.b.y + this.c.y) / 3,
+            (this.a.z + this.b.z + this.c.z) / 3
+        );
+        
+        return centroid;
+    }
 }
 
 export default Triangle;

@@ -95,7 +95,7 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
 
 
 
-/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
 
@@ -112,9 +112,9 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
     }
 
     return result;
-}*/
+}
 
-fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+/*fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
 
@@ -172,9 +172,9 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
     }
 
     return result;
-}
+}*/
 
-fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
+fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {    
     let dotProductA = dot(tri.na, ray_direction);
     let dotProductB = dot(tri.nb, ray_direction);
     let dotProductC = dot(tri.nc, ray_direction);

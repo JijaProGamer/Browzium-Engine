@@ -47,7 +47,7 @@ fn calculatePixelColor(
 ) -> TraceOutput {
     var pixelHash = randomVec2(initialPixelHash, pixel);
 
-    var pixelModifier = randomPoint2(pixelHash, pixel);
+    var pixelModifier = random2Vec2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
     var realPixel = pixel + pixelModifier.output / 2;

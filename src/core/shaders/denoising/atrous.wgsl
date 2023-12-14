@@ -69,7 +69,7 @@ fn computeMain(
     for(var i: i32 = 0; i < 25; i++)
     {
         let tempUV = vec2<f32>(global_invocation_id.xy) + offset[i] * inputFilteringData.stepwidth;
-        if(tempUV.x < 0 || tempUV.y < 0) { continue; }
+        if(tempUV.x < 0 || tempUV.y < 0 || tempUV.x >= inputData.resolution.x || tempUV.y >= inputData.resolution.y) { continue; }
 
         let uv = vec2<u32>(tempUV);
         let neighborObject = textureLoad(objectMap, uv, 0).x;

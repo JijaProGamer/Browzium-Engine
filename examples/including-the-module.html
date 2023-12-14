@@ -13,8 +13,8 @@
     <input type="range" id="slider" min="30" max="120" value="90" step="1">
     <div id="fovDisplay">FOV: 90</div>
 
-    <input type="range" id="compressionSlider" min="0.5" max="10" value="2" step="0.25">
-    <div id="compressionDisplay">Compression rate: 2</div>
+    <input type="range" id="compressionSlider" min="0.5" max="10" value="2.25" step="0.25">
+    <div id="compressionDisplay">Compression rate: 2.25</div>
 
     <p id="frame_time">average frame time: %s</p>
     <p id="frames_per_second">frames per second: %s</p>
@@ -103,15 +103,17 @@
         }
     })
 
+    await GameEngine.AwaitPageActivation()
+    await GameEngine.InitActivation()
+
     GameEngine.Renderer.tonemapMode = 0;
     GameEngine.Renderer.gammaCorrect = true;
-    GameEngine.Renderer.denoiser = "none";
+    GameEngine.Renderer.denoiser = "atrous";
+
+    GameEngine.Renderer.denoisersBuilt.atrous.levels = 5;
 
     GameEngine.Renderer.bounces = 5;
     GameEngine.Renderer.rpp = 3;
-
-    await GameEngine.AwaitPageActivation()
-    await GameEngine.InitActivation()
 
     let frames = 0;
     let frameTime = 0;
