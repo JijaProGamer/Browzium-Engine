@@ -461,7 +461,7 @@ fn random(seed: f32) -> f32 {
 fn randomVec2(seed: f32, vec: vec2<f32>) -> f32 {
     var vector = vec3<f32>(seed, vec);
 
-    vector = fract(vector * 0.75318531);
+    vector = vector * 0.75318531;
     vector += dot(vector, vector.zyx + .4143);
 
     return random(vector.x + vector.y + vector.z);
@@ -471,14 +471,16 @@ fn random2Vec2(seed: f32, vec: vec2<f32>) -> Random3Vec2Output {
     var vector = vec3<f32>(seed, vec);
     var output: Random3Vec2Output;
 
-    vector = fract(vector * vec3<f32>(0.1031, 0.1030, 0.0973));
+    vector = vector * vec3<f32>(0.1031, 0.1030, 0.0973);
     vector += dot(vector, vector.yzx + 33.33);
 
-    var outputVector = fract((vector.xx + vector.yz) * vector.zy) - vec2<f32>(0.5);
+    var outputVector = (vector.xx + vector.yz) * vector.zy;
 
     outputVector = vec2<f32>(random(outputVector.x), random(outputVector.y)); // tap tap ingerasi
+    outputVector -= vec2<f32>(0.5);
+    outputVector *= 2;
 
-    output.seed = outputVector.y + outputVector.x / .43145 + seed * 2.634145;
+    output.seed = random(outputVector.y + outputVector.x / .43145 + seed * 2.634145);
     output.output = outputVector;
     
     return output;
@@ -488,15 +490,15 @@ fn random3Vec3(seed: f32, vec: vec3<f32>) -> Random3Vec3Output {
     var vector = vec4<f32>(seed, vec);
     var output: Random3Vec3Output;
 
-    vector = fract(vector * vec4<f32>(.9898, 78.233, 43.094, 94.457));
+    vector = vector * vec4<f32>(.9898, 78.233, 43.094, 94.457);
     vector += dot(vector, vector.wzxy + 33.33);
 
+    vector = (vector.xxyz + vector.yzzw) * vector.zywx;
     vector = vec4<f32>(random(vector.x), random(vector.y), random(vector.z), random(vector.w)); // tap tap ingerasi
-    vector = fract((vector.xxyz + vector.yzzw) * vector.zywx);
-
     vector -= vec4<f32>(0.5);
+    vector *= 2;
 
-    output.seed = vector.y * seed * .65376464 + vector.x - vector.z * vector.w;
+    output.seed = random(vector.y + seed * .65376464 + vector.x - vector.z * vector.w);
     output.output = vector.wxz;
     
     return output;
@@ -514,31 +516,22 @@ fn randomPoint2(seed: f32, position: vec2<f32>) -> Random3Vec2Output {
     return output;
 }
 
-fn randomPointInHemisphere(seed: f32, normal: vec3<f32>, position: vec3<f32>) -> Random3Vec3Output {
-    var randomVec: Random3Vec3Output;
-    randomVec.seed = seed;
+fn randomPointInCircle(seed: f32, position: vec3<f32>) -> Random3Vec3Output {
+    var outputSeed = seed;
 
-    var r1: f32 = random(seed);
-    var r2: f32 = random(r1 * seed * random(position.x / position.y + position.z * 33.33));
-
-    var phi: f32 = 2.0 * 3.141592653589793 * r1;
-    var cosTheta: f32 = sqrt(1.0 - r2);
-    var sinTheta: f32 = sqrt(r2);
-
-    var x: f32 = cos(phi) * sinTheta;
-    var y: f32 = cosTheta;
-    var z: f32 = sin(phi) * sinTheta;
-
-    //var hemisphereSample: vec3<f32> = normalize(vec3<f32>(x - 0.5, y - 0.5, z - 0.5));
-    var hemisphereSample: vec3<f32> = normalize(vec3<f32>(x, y, z));
-
-    if (dot(hemisphereSample, normal) >= 0.0) {
-        randomVec.output = hemisphereSample;
-    } else {
-        randomVec.output = -hemisphereSample;
+    var tries = 0;
+    var output = random3Vec3(outputSeed, position);
+    outputSeed = output.seed;
+    while(dot(output.output, output.output) > 1 && tries < 10){
+        outputSeed = output.seed;
+        output = random3Vec3(outputSeed, position);
+        tries ++;
     }
 
-    return randomVec;
+    output.output = normalize(output.output);
+    output.seed = outputSeed;
+
+    return output;
 }
 
 fn NoHit(
@@ -555,7 +548,6 @@ fn NoHit(
 
 
 const maxDepth: i32 = 5;
-const russianRuleteProbability = 1.0 / 5.0;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -608,28 +600,21 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var newDirection: vec3<f32>;
 
         if(isSpecular <= material.reflectance){
-            let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+            var newDirectionValue = randomPointInCircle(pixelHash, intersection.position);
+            if(dot(newDirectionValue.output, intersection.normal) > 0){
+                newDirectionValue.output = -newDirectionValue.output;
+            }
+
             let reflected = (realDirection - 2.0 * dot(realDirection, intersection.normal) * intersection.normal);
             newDirection = normalize((1 - material.reflectance) *  newDirectionValue.output + material.reflectance * reflected);
             pixelHash = newDirectionValue.seed;
 
             diffuse = (max(1 - material.emittance, 0) * material.color);
         } else {
-            let terminationRandom = random(pixelHash);
-            pixelHash *= terminationRandom; 
-
-            /*if (terminationRandom < russianRuleteProbability && material.emittance == 0) {
-                accumulatedColor *= 1.0 / (1.0 - terminationRandom);
-                break;
-            }*/
-
-            let russianP = max(accumulatedColor.x, max(accumulatedColor.y, accumulatedColor.z));
-            if (terminationRandom > russianP) {
-                accumulatedColor *= 1.0 / (1.0 - russianP);
-                break;
-            }
-
-            let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+            var newDirectionValue = randomPointInCircle(pixelHash, intersection.position);
+            //newDirectionValue.output = normalize(newDirectionValue.output);
+            newDirectionValue.output = normalize(intersection.normal + newDirectionValue.output);
+            //let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
             newDirection = newDirectionValue.output;
             pixelHash = newDirectionValue.seed;
 
@@ -684,19 +669,17 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
-    output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
-    //output.noisy_color = vec4<f32>(direction.y, 1, 1, 1);
-    output.albedo = vec3<f32>(1);
-
-    /*if (!hit_octree(start, direction, inputTreeParts[0])) {
+    if (!hit_octree(start, direction, inputTreeParts[0])) {
+        output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
         output.albedo = NoHit(direction, start);
     } else {
-        for(var i = 0; i < 11; i++){
+        output.noisy_color = vec4<f32>(1);
+        for(var i = 1; i < 5; i++){
             if(hit_octree(start, direction, inputTreeParts[i])){
-                output.albedo = vec3<f32>(f32(i) / 11, 1, 0);
+                output.albedo = vec3<f32>(f32(i - 1) / 5, 1, 0);
             }
         }
-    }*/
+    }
 
     return output;
 }*/

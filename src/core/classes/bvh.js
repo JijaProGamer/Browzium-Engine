@@ -96,6 +96,27 @@ class BVHTree {
     }
 
     triangleIntersectsLeaf(triangle) {
+        const min = this.minPosition;
+        const max = this.maxPosition;
+
+        if (
+            triangle.a.x >= min.x && triangle.a.x <= max.x &&
+            triangle.a.y >= min.y && triangle.a.y <= max.y &&
+            triangle.a.z >= min.z && triangle.a.z <= max.z &&
+            triangle.b.x >= min.x && triangle.b.x <= max.x &&
+            triangle.b.y >= min.y && triangle.b.y <= max.y &&
+            triangle.b.z >= min.z && triangle.b.z <= max.z &&
+            triangle.c.x >= min.x && triangle.c.x <= max.x &&
+            triangle.c.y >= min.y && triangle.c.y <= max.y &&
+            triangle.c.z >= min.z && triangle.c.z <= max.z
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /*triangleIntersectsLeaf(triangle) {
         // Triangle normal
         const n = triangle.t;
 
@@ -182,7 +203,7 @@ class BVHTree {
         }
 
         return true;
-    }
+    }*/
 
     static calculateTreeSize(triangleArray) {
         let minPosition = new Vector3(triangleArray[0].a.x, triangleArray[0].a.y, triangleArray[0].a.z);

@@ -716,13 +716,15 @@ class RenderingManager {
             branches.push(leaf)
 
             if (leaf.child1) {
+                let len = branches.length
                 getBranches(leaf.child1)
-                leaf.child1 = branches.length;
+                leaf.child1 = len;
             }
 
             if (leaf.child2) {
+                let len = branches.length
                 getBranches(leaf.child2)
-                leaf.child2 = branches.length;
+                leaf.child2 = len;
             }
         }
 

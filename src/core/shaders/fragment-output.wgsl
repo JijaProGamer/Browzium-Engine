@@ -25,28 +25,15 @@ struct OutputTextureData {
 
 @group(2) @binding(0) var<storage, read> image_history_data: OutputTextureData;
 
-const ACESInputMat = mat3x3<f32>(
-    0.59719, 0.35458, 0.04823,
-    0.07600, 0.90834, 0.01566,
-    0.02840, 0.13383, 0.83777
-);
-
-const ACESOutputMat = mat3x3<f32>(
-    1.60475, -0.53108, -0.07367,
-    -0.10208, 1.10813, -0.00605,
-    -0.00327, -0.07276, 1.07602
-);
-
-fn RRTAndODTFit(v: vec3<f32>) -> vec3<f32>{
-    let a = v * (v + 0.0245786) - 0.000090537;
-    let b = v * (0.983729 * v + 0.4329510) + 0.238081;
-    return a / b;
-}
 
 fn applyACES(x: vec3<f32>) -> vec3<f32> {
-    var output = ACESInputMat * (x * (x * 0.9478672986 + 0.0521327014));
-    output = RRTAndODTFit(x);
-    output = ACESOutputMat * x;
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    let output = saturate((x*(a*x+b))/(x*(c*x+d)+e));
+
     return clamp(output, vec3<f32>(0.0), vec3<f32>(1.0));
 }
 

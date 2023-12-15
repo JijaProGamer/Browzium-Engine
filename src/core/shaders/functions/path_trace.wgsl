@@ -15,7 +15,6 @@ fn NoHit(
 
 
 const maxDepth: i32 = 5;
-const russianRuleteProbability = 1.0 / 5.0;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -68,28 +67,21 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var newDirection: vec3<f32>;
 
         if(isSpecular <= material.reflectance){
-            let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+            var newDirectionValue = randomPointInCircle(pixelHash, intersection.position);
+            if(dot(newDirectionValue.output, intersection.normal) > 0){
+                newDirectionValue.output = -newDirectionValue.output;
+            }
+
             let reflected = (realDirection - 2.0 * dot(realDirection, intersection.normal) * intersection.normal);
             newDirection = normalize((1 - material.reflectance) *  newDirectionValue.output + material.reflectance * reflected);
             pixelHash = newDirectionValue.seed;
 
             diffuse = (max(1 - material.emittance, 0) * material.color);
         } else {
-            let terminationRandom = random(pixelHash);
-            pixelHash *= terminationRandom; 
-
-            /*if (terminationRandom < russianRuleteProbability && material.emittance == 0) {
-                accumulatedColor *= 1.0 / (1.0 - terminationRandom);
-                break;
-            }*/
-
-            let russianP = max(accumulatedColor.x, max(accumulatedColor.y, accumulatedColor.z));
-            if (terminationRandom > russianP) {
-                accumulatedColor *= 1.0 / (1.0 - russianP);
-                break;
-            }
-
-            let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
+            var newDirectionValue = randomPointInCircle(pixelHash, intersection.position);
+            //newDirectionValue.output = normalize(newDirectionValue.output);
+            newDirectionValue.output = normalize(intersection.normal + newDirectionValue.output);
+            //let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
             newDirection = newDirectionValue.output;
             pixelHash = newDirectionValue.seed;
 
@@ -144,19 +136,17 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
-    output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
-    //output.noisy_color = vec4<f32>(direction.y, 1, 1, 1);
-    output.albedo = vec3<f32>(1);
-
-    /*if (!hit_octree(start, direction, inputTreeParts[0])) {
+    if (!hit_octree(start, direction, inputTreeParts[0])) {
+        output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
         output.albedo = NoHit(direction, start);
     } else {
-        for(var i = 0; i < 11; i++){
+        output.noisy_color = vec4<f32>(1);
+        for(var i = 1; i < 5; i++){
             if(hit_octree(start, direction, inputTreeParts[i])){
-                output.albedo = vec3<f32>(f32(i) / 11, 1, 0);
+                output.albedo = vec3<f32>(f32(i - 1) / 5, 1, 0);
             }
         }
-    }*/
+    }
 
     return output;
 }*/
