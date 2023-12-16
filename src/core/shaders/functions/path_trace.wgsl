@@ -10,7 +10,7 @@ fn NoHit(
     let White = vec3<f32>(0.8, 0.8, 0.8);
     let Blue = vec3<f32>(0.15, 0.3, 0.9);
 
-    return (0.7-a) * White + (a + 0.3) * Blue;
+    return (0.6-a) * White + (a + 0.4) * Blue;
 }
 
 
@@ -137,7 +137,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var output: Pixel;
 
     if (!hit_octree(start, direction, inputTreeParts[0])) {
-        output.noisy_color = vec4<f32>(NoHit(direction, start), 1);
+        output.noisy_color = vec4<f32>(1);
         output.albedo = NoHit(direction, start);
     } else {
         output.noisy_color = vec4<f32>(1);
@@ -147,6 +147,17 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             }
         }
     }
+
+    return output;
+}*/
+
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+    var output: Pixel;
+
+    output.noisy_color = vec4<f32>(1);
+
+    var random = random3Vec3(rawPixelHash, vec3<f32>(pixel, 50));
+    output.albedo = vec3<f32>((random.output.x + 1) / 2, (random.output.y + 1) / 2, (random.output.z + 1) / 2);
 
     return output;
 }*/

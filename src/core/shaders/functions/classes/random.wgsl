@@ -1,13 +1,11 @@
 fn hash(input: u32) -> u32 {
     var x = input;
 
-    x ^= x >> 17;
-    x *= 0xed5ad4bb;
-    x ^= x >> 11;
-    x *= 0xac4c1b51;
-    x ^= x >> 15;
-    x *= 0x31848bab;
-    x ^= x >> 14;
+    x += ( x << 10u );
+    x ^= ( x >>  6u );
+    x += ( x <<  3u );
+    x ^= ( x >> 11u );
+    x += ( x << 15u );
     
     return x;
 }
@@ -19,19 +17,7 @@ fn floatConstruct(m: u32) -> f32 {
     var mBits: u32 = m & ieeeMantissa;
     mBits = mBits | ieeeOne;
 
-    let f: f32 = bitcast<f32>(mBits);
-    return f - 1.0;
-}
-
-fn inverseFloatConstruct(f: f32) -> u32 {
-    let ieeeMantissa: u32 = 0x007FFFFFu;
-    let ieeeOne: u32 = 0x3F800000u;
-
-    let fBits: u32 = bitcast<u32>(f);
-    let mBits: u32 = fBits & ieeeMantissa;
-
-    let mantissaWithImplicitBit: u32 = mBits | ieeeOne;
-    return mantissaWithImplicitBit;
+    return bitcast<f32>(mBits) - 1;
 }
 
 struct Random3Vec3Output {
@@ -45,28 +31,18 @@ struct Random3Vec2Output {
 };
 
 fn random(seed: f32) -> f32 {
-    return floatConstruct(hash(inverseFloatConstruct(seed)));
+    return floatConstruct(hash(bitcast<u32>(seed)));
 }
 
 fn randomVec2(seed: f32, vec: vec2<f32>) -> f32 {
-    var vector = vec3<f32>(seed, vec);
-
-    vector = vector * 0.75318531;
-    vector += dot(vector, vector.zyx + .4143);
-
-    return random(vector.x + vector.y + vector.z);
+    return random(seed + vec.x * 0.44 - vec.y);
 }
 
 fn random2Vec2(seed: f32, vec: vec2<f32>) -> Random3Vec2Output {
-    var vector = vec3<f32>(seed, vec);
     var output: Random3Vec2Output;
+    var seedValue = randomVec2(seed, vec);
 
-    vector = vector * vec3<f32>(0.1031, 0.1030, 0.0973);
-    vector += dot(vector, vector.yzx + 33.33);
-
-    var outputVector = (vector.xx + vector.yz) * vector.zy;
-
-    outputVector = vec2<f32>(random(outputVector.x), random(outputVector.y)); // tap tap ingerasi
+    var outputVector = vec2<f32>(random(vec.x * seedValue), random(vec.x * seedValue)); // tap tap ingerasi
     outputVector -= vec2<f32>(0.5);
     outputVector *= 2;
 

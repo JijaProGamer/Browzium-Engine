@@ -66,7 +66,9 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
 
         textureStore(image_history, pixelPosition, pixel);
         pixel.w = 1;
-    }
+    } // Imma use this for now
+
+
 
     /*if(image_history_data.staticFrames == 0){
         textureStore(image_history, pixelPosition, pixel);
