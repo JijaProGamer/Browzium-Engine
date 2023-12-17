@@ -151,7 +151,7 @@ fn computeMain(
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
 
-    if(isNan(avarageColor.x) || isNan(avarageColor.y) || isNan(avarageColor.z) || isNan(avarageColor.w)){ return; }
+    //if(isNan(avarageColor.x) || isNan(avarageColor.y) || isNan(avarageColor.z)){ return; }
     textureStore(image_color_texture, global_invocation_id.xy, avarageColor / maxRays);
     textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
     textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));

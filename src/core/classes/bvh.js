@@ -25,7 +25,7 @@ class BVHTree {
         for (let triangleIndex = 0; triangleIndex < triangleArray.length; triangleIndex++) {
             let triangle = triangleArray[triangleIndex];
 
-            if (this.triangleIntersectsLeaf(triangle)) {
+            if (BVHTree.triangleIntersectsLeaf(triangle, minPosition, maxPosition)) {
                 this.objects.push(triangleIndex)
 
                 if (this.objects.length > 8) {
@@ -39,63 +39,36 @@ class BVHTree {
     }
 
     subdivide(triangleArray) {
-        const size = Vector3.subtract(this.maxPosition, this.minPosition);
-        const splitAxis = size.x > size.y ? (size.x > size.z ? 'x' : 'z') : (size.y > size.z ? 'y' : 'z');
-    
-        // Sort triangles along the split axis
-        const sortedTriangles = triangleArray.slice().sort((a, b) => {
-            return a.getCentroid()[splitAxis] - b.getCentroid()[splitAxis];
-        });
-    
-        const midpoint = this.findMidpoint(sortedTriangles, splitAxis);
-    
-        const trianglesChild1 = sortedTriangles.slice(0, midpoint);
-        const trianglesChild2 = sortedTriangles.slice(midpoint);
-    
-        // Create child BVH nodes
+        const size = Vector3.subtract(this.maxPosition, this.minPosition).multiplyScalar(1/2);
+        const splitAxis = Math.abs(size.x) > Math.abs(size.y) ? (Math.abs(size.x) > Math.abs(size.z) ? 'x' : 'z') : (Math.abs(size.y) > Math.abs(size.z) ? 'y' : 'z');
+        const splitPosition = Vector3.add(this.minPosition, new Vector3(size.x * (splitAxis == "x"), size.y * (splitAxis == "y"), size.z * (splitAxis == "z")))
+
         const minPositionChild1 = this.minPosition.copy();
-        const maxPositionChild1 = this.maxPosition.copy();
-        maxPositionChild1[splitAxis] = sortedTriangles[midpoint - 1].getCentroid()[splitAxis];
+        const maxPositionChild1 = splitPosition;
     
-        const minPositionChild2 = this.minPosition.copy();
-        minPositionChild2[splitAxis] = sortedTriangles[midpoint].getCentroid()[splitAxis];
+        const minPositionChild2 = splitPosition;
         const maxPositionChild2 = this.maxPosition.copy();
+
+        const trianglesChild1 = [];
+        const trianglesChild2 = [];
+
+        for (let triangleIndex = 0; triangleIndex < triangleArray.length; triangleIndex++) {
+            let triangle = triangleArray[triangleIndex];
+
+            if (BVHTree.triangleIntersectsLeaf(triangle, minPositionChild1, maxPositionChild1)) {
+                trianglesChild1.push(triangle)
+            }
+
+            if (BVHTree.triangleIntersectsLeaf(triangle, minPositionChild2, maxPositionChild2)) {
+                trianglesChild2.push(triangle)
+            }
+        }
     
         this.child1 = new BVHTree(minPositionChild1, maxPositionChild1, trianglesChild1);
         this.child2 = new BVHTree(minPositionChild2, maxPositionChild2, trianglesChild2);
     }
 
-    
-    findMidpoint(sortedTriangles, splitAxis) {
-        const totalTriangles = sortedTriangles.length;
-
-        if (totalTriangles <= 1) {
-            return 0;
-        }
-    
-        let sumTrianglesChild1 = sortedTriangles[0].getCentroid()[splitAxis];
-        let sumTrianglesChild2 = 0;
-    
-        for (let i = 1; i < totalTriangles; i++) {
-            sumTrianglesChild2 += sortedTriangles[i].getCentroid()[splitAxis];
-        }
-    
-        for (let i = 1; i < totalTriangles; i++) {
-            const avgTrianglesChild1 = sumTrianglesChild1 / i;
-            const avgTrianglesChild2 = sumTrianglesChild2 / (totalTriangles - i);
-    
-            if (avgTrianglesChild1 >= avgTrianglesChild2) {
-                return i;
-            }
-    
-            sumTrianglesChild1 += sortedTriangles[i].getCentroid()[splitAxis];
-            sumTrianglesChild2 -= sortedTriangles[i].getCentroid()[splitAxis];
-        }
-    
-        return Math.floor(totalTriangles / 2);
-    }
-
-    triangleIntersectsLeaf(triangle) {
+    /*static triangleIntersectsLeaf(triangle) {
         const min = this.minPosition;
         const max = this.maxPosition;
 
@@ -114,15 +87,31 @@ class BVHTree {
         }
 
         return false;
+    }*/
+
+    static triangleIntersectsLeaf(triangle, min, max) {
+        let centroid = triangle.getCentroid();
+        if(min.x > max.x && min.y > max.y && min.y > max.y){
+            let temp = min;
+            min = max;
+            max = temp;
+        }
+
+        if (
+            centroid.x >= min.x && centroid.x <= max.x &&
+            centroid.y >= min.y && centroid.y <= max.y &&
+            centroid.z >= min.z && centroid.z <= max.z
+        ) {
+            return true;
+        }
+
+        return false;
     }
 
-    /*triangleIntersectsLeaf(triangle) {
+    /*static triangleIntersectsLeaf(triangle, p, dpp) {
         // Triangle normal
         const n = triangle.t;
-
-        // p & delta-p
-        const p = this.minPosition;
-        const dp = Vector3.subtract(this.maxPosition, p);
+        const dp = Vector3.subtract(dpp, p)
 
         // Test for triangle-plane/box overlap
         const c = new Vector3(

@@ -22,14 +22,14 @@ let triangleStride = (3 * 4) + (3 * 4) + 4;
 /*
     Material struct:
 
-    color - 4 * 4
-    transparency - 4
-    index_of_refraction - 4
-    padding0 - 4
-    padding1 - 4
+    color - 4
+    transparency - 1
+    index_of_refraction - 1
+    padding0 - 1
+    padding1 - 1
 */
 
-let materialStride = 4 + 1 + 1 + (1 * 2);
+let materialStride = 4 + 1 + 1 + 1 + 1;
 
 /*
     Octree Branch struct:
@@ -159,61 +159,60 @@ class RenderingManager {
         let ComputeSize = TextureSize * 3;
         let TemportalSize = TextureSize * 1;
 
-        this.renderTextureDenoised = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
-        });
-
         this.renderTextureReadDenoised = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
         });
 
         this.renderTextureColor = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
         });
 
         this.renderTextureNormal = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
         });
 
         this.renderTextureDepth = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
         });
 
         this.renderTextureAlbedo = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
         });
 
         this.renderTextureObject = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'r32float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
         });
 
         this.renderTextureHistory = this.device.createTexture({
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba32float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
         });
 
         this.renderTextureHistoryRead = this.device.createTexture({
             label: "renderTextureHistoryRead",
             size: { width: this.canvas.width, height: this.canvas.height },
             format: 'rgba32float',
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
         });
 
+        this.renderDenoisedTexture = this.device.createTexture({
+            size: { width: this.canvas.width, height: this.canvas.height },
+            format: 'rgba16float',
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+        });
 
         this.renderHistoryData = this.device.createBuffer({
             size: 8,
@@ -223,12 +222,6 @@ class RenderingManager {
         this.temporalBuffer = this.device.createBuffer({
             size: TemportalSize,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-        });
-
-        this.renderDenoisedTexture = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
-            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE_BINDING,
         });
 
         this.renderReadTexture = this.device.createBuffer({
@@ -290,7 +283,7 @@ class RenderingManager {
             entries: [
                 {
                     binding: 0,
-                    resource: this.renderTextureReadDenoised.createView(),
+                    resource: this.renderTextureReadDenoised.createView(), // TODO: FIX
                 },
                 {
                     binding: 1,
@@ -690,8 +683,6 @@ class RenderingManager {
 
             materialData[locationStart + 4] = material.transparency;
             materialData[locationStart + 5] = material.index_of_refraction;
-
-            // Padding
 
             materialData[locationStart + 6] = material.reflectance;
             materialData[locationStart + 7] = material.emittance;

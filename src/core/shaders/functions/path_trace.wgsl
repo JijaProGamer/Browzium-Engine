@@ -16,32 +16,63 @@ fn NoHit(
 
 const maxDepth: i32 = 5;
 
+struct BRDFDirectionOutput {
+    isSpecular: bool,
+    direction: vec3<f32>,
+    outputHash: f32,
+}
+
+fn BRDFDirection(
+    intersection: HitResult,
+    oldDirection: vec3<f32>,
+    rawHash: f32,
+) -> BRDFDirectionOutput { 
+    var output: BRDFDirectionOutput;
+    var pixelHash = rawHash;
+    let doSpecular = intersection.material.reflectance;
+    
+    var diffuseDirectionValue = randomPointInCircle(pixelHash, intersection.position);
+    pixelHash = diffuseDirectionValue.seed;
+
+    let reflectedDir = (oldDirection - 2.0 * dot(oldDirection, intersection.normal) * intersection.normal);
+    let diffuseDirection = normalize(intersection.normal + diffuseDirectionValue.output);
+    let specularDir = normalize(mix(reflectedDir, diffuseDirection, 0/*intersection.material.roughness*/));
+    let outputDir = mix(diffuseDirection, specularDir, f32(doSpecular));
+
+    output.isSpecular = doSpecular;
+    output.direction = outputDir;
+    output.outputHash = pixelHash;
+
+    return output;
+}
+
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
+    var intersection: HitResult;
     var realDirection = direction;
     var realStart = start;
-    var accumulatedColor = vec3<f32>(1);
+
+    var rayColour = vec3<f32>(1);
+
     var pixelHash = rawPixelHash;
     var hit_light = false;
     var depth: i32 = 0;
 
-    var applyRotation = false;
-    var fistColor = vec3<f32>(1);
+    var gatherDenoisingData = true;
+
+    var emittance: vec3<f32>;
 
     for (; depth <= maxDepth; depth = depth + 1) {
-        if (depth >= maxDepth) {
+        if (depth >= maxDepth || (!intersection.hit && depth > 0)) {
             break;
         }
 
-        var intersection = get_ray_intersection(realStart, realDirection);
+        intersection = get_ray_intersection(realStart, realDirection);
         var material = intersection.material;
-        var emittance = material.color * material.emittance;
+        emittance = material.color * material.emittance;
 
-        let isSpecular = random(pixelHash);
-        pixelHash /= isSpecular;
-
-        if(depth == 0 || applyRotation == true){
+        if(gatherDenoisingData){
             if (!intersection.hit) { 
                 intersection.depth = 999999; 
                 intersection.normal = -realDirection; 
@@ -53,20 +84,24 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             output.normal = intersection.normal;
             output.depth = intersection.depth;
             output.intersection = intersection.position;
-            output.albedo = material.color;
             output.object_id = intersection.object_id;
+            output.albedo = material.color;
+            gatherDenoisingData = false;
         }
 
         if (!intersection.hit) {
-            hit_light = true;
-            accumulatedColor *= NoHit(realDirection, realStart);
+            emittance = NoHit(realDirection, realStart);
+
+            output.noisy_color += vec4<f32>(rayColour * emittance, 0);
             break;
         }
 
-        var diffuse: vec3<f32>;
-        var newDirection: vec3<f32>;
+        let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
+        let newDirection = BRDFDirectionValue.direction;
+        let diffuse = (max(1 - material.emittance, 0) * material.color);
+        pixelHash = BRDFDirectionValue.outputHash;
 
-        if(isSpecular <= material.reflectance){
+        /*if(isSpecular <= material.reflectance){
             var newDirectionValue = randomPointInCircle(pixelHash, intersection.position);
             if(dot(newDirectionValue.output, intersection.normal) > 0){
                 newDirectionValue.output = -newDirectionValue.output;
@@ -79,9 +114,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             diffuse = (max(1 - material.emittance, 0) * material.color);
         } else {
             var newDirectionValue = randomPointInCircle(pixelHash, intersection.position);
-            //newDirectionValue.output = normalize(newDirectionValue.output);
             newDirectionValue.output = normalize(intersection.normal + newDirectionValue.output);
-            //let newDirectionValue = randomPointInHemisphere(pixelHash, intersection.normal, intersection.position);
             newDirection = newDirectionValue.output;
             pixelHash = newDirectionValue.seed;
 
@@ -90,44 +123,26 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             
             var BRDF = (max(1 - material.emittance, 0) * material.color) / 3.141592653589;
             diffuse = BRDF * cos_theta / p;
-        }
-
-        if(applyRotation == true){
-            output.object_id = intersection.object_id;
-            output.albedo = (diffuse + emittance) * fistColor;
-            diffuse = vec3<f32>(1, 1, 1);
-            emittance = vec3<f32>(0, 0, 0);
-
-            applyRotation = false;
-        }
+        }*/
 
         if(depth == 0) {
-            output.object_id = intersection.object_id;
-            output.albedo = diffuse + emittance;
-            fistColor = output.albedo;
-            diffuse = vec3<f32>(1, 1, 1);
-            emittance = vec3<f32>(0, 0, 0);
-
             if(material.reflectance >= 0.35){
             //if(dot(reflected, newDirectionValue.output) > 0.9){
-                applyRotation = true;
+                gatherDenoisingData = true;
             }
-        } // remove albedo from first bounce, we only want the noisy data
-
-        accumulatedColor *= emittance + diffuse;
-
-        if(material.emittance > 0){
-            hit_light = true;
-            break;
         }
+
+        output.noisy_color += vec4<f32>(rayColour * emittance, 0);
+        rayColour *= emittance + diffuse;
+
 
         realStart = intersection.position;
         realDirection = newDirection;
     }
 
-    //if(true){
-    if(hit_light){
-        output.noisy_color = vec4<f32>(accumulatedColor, 1);
+    output.noisy_color.w = length(output.noisy_color.xyz / emittance);
+    if(emittance.x + emittance.y + emittance.z == 0){
+        output.noisy_color.w = 0;
     }
 
     return output;
@@ -141,9 +156,9 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         output.albedo = NoHit(direction, start);
     } else {
         output.noisy_color = vec4<f32>(1);
-        for(var i = 1; i < 5; i++){
+        for(var i = 1; i < 7; i++){
             if(hit_octree(start, direction, inputTreeParts[i])){
-                output.albedo = vec3<f32>(f32(i - 1) / 5, 1, 0);
+                output.albedo = vec3<f32>(f32(i - 1) / 6, 1, 0);
             }
         }
     }

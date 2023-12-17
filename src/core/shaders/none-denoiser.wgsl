@@ -11,7 +11,8 @@ fn computeMain(
     var color = textureLoad(colorMap, global_invocation_id.xy, 0);
     var albedo = textureLoad(albedoMap, global_invocation_id.xy, 0);
 
-    textureStore(output, global_invocation_id.xy, color * albedo);
+    //textureStore(output, global_invocation_id.xy, vec4<f32>(0, 1, 1, 1));
+    textureStore(output, global_invocation_id.xy, color * albedo/* + color * color.w*/);
 
     /*var color = textureLoad(colorMap, global_invocation_id.xy, 0);
 

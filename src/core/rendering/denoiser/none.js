@@ -15,7 +15,7 @@ class emptyDenoiser {
         this.renderTextureAlbedo = this.parent.device.createTexture({
             size: { width: this.parent.canvas.width, height: this.parent.canvas.height },
             format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
         });
 
         this.renderTextureOutput = this.parent.device.createTexture({
@@ -26,6 +26,7 @@ class emptyDenoiser {
 
         // Bind groups
 
+
         this.computeImageBindGroup = this.parent.device.createBindGroup({
             layout: this.computeImageLayout,
             label: "Browzium Engine None denoiser compute shader image bind group",
@@ -33,14 +34,17 @@ class emptyDenoiser {
                 {
                     binding: 0,
                     resource: this.renderTextureColor.createView(),
+                    //resource: this.parent.renderTextureColor.createView(),
                 },
                 {
                     binding: 1,
                     resource: this.renderTextureAlbedo.createView(),
+                    //resource: this.parent.renderTextureAlbedo.createView(),
                 },
                 {
                     binding: 2,
                     resource: this.renderTextureOutput.createView(),
+                    //resource: this.parent.renderDenoisedTexture.createView(),
                 }
             ],
         });
@@ -53,30 +57,24 @@ class emptyDenoiser {
             entries: [
                 {
                     binding: 0,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.COMPUTE,
                     texture: {
                         format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
                     }
                 },
                 {
                     binding: 1,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.COMPUTE,
                     texture: {
                         format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
                     }
                 },
                 {
                     binding: 2,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.COMPUTE,
+                    visibility: GPUShaderStage.COMPUTE,
                     storageTexture: {
                         access: "write-only",
                         format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
                     }
                 },
             ],
