@@ -6,46 +6,9 @@ import BVHTree from "../classes/bvh";
 import ATrousDenoiser from "./denoiser/ATrous";
 import emptyDenoiser from "./denoiser/none";
 
-/*
-    Triangle struct:
-
-    a, b, c - 3 * 4
-    na, nb, nc - 3 * 4
-    material_id - 4
-    padding0 - 4
-    padding1 - 4
-    padding2 - 4
-*/
 
 let triangleStride = (3 * 4) + (3 * 4) + 4;
-
-/*
-    Material struct:
-
-    color - 4
-    transparency - 1
-    index_of_refraction - 1
-    padding0 - 1
-    padding1 - 1
-*/
-
-let materialStride = 4 + 1 + 1 + 1 + 1;
-
-/*
-    Octree Branch struct:
-
-    center: vec3<f32> - 4 * 4
-    padding0: f32,
-
-    halfSize: f32,
-    children: array<f32, 8> - 4 * 8
-    triangles: array<f32, 8> - 4 * 8
-
-    padding1: f32,
-    padding2: f32,
-    padding3: f32
-*/
-
+let materialStride = 4 + 4;
 let octreeBranchStride = 4 + 4 + 4 + 8;
 
 function getNext2Power(n) {
@@ -104,6 +67,7 @@ class RenderingManager {
 
     computeGlobalData;
     computeMapData;
+    computeLightData;
     computeMaterialData;
     computeOctreeTreeData;
 
@@ -265,15 +229,21 @@ class RenderingManager {
                 {
                     binding: 1,
                     resource: {
-                        buffer: this.computeMaterialData,
-                    },
+                        buffer: this.computeLightData,
+                    }
                 },
                 {
                     binding: 2,
                     resource: {
+                        buffer: this.computeMaterialData,
+                    },
+                },
+                {
+                    binding: 3,
+                    resource: {
                         buffer: this.computeOctreeTreeData,
                     },
-                }
+                },
             ],
         });
 
@@ -376,7 +346,14 @@ class RenderingManager {
                     buffer: {
                         type: "read-only-storage",
                     }
-                }
+                },
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: {
+                        type: "read-only-storage",
+                    }
+                },
             ],
         });
 
@@ -677,16 +654,18 @@ class RenderingManager {
             materialData[locationStart + 0] = material.diffuse.x;
             materialData[locationStart + 1] = material.diffuse.y;
             materialData[locationStart + 2] = material.diffuse.z;
-            materialData[locationStart + 3] = 0;
 
             // Other stuff
 
-            materialData[locationStart + 4] = material.transparency;
-            materialData[locationStart + 5] = material.index_of_refraction;
-
-            materialData[locationStart + 6] = material.reflectance;
-            materialData[locationStart + 7] = material.emittance;
+            materialData[locationStart + 3] = material.transparency;
+            materialData[locationStart + 4] = material.index_of_refraction;
+            materialData[locationStart + 5] = material.reflectance;
+            materialData[locationStart + 6] = material.emittance;
+            materialData[locationStart + 7] = material.roughtness;
         }
+
+
+        console.log(materialList, materialData)
 
         this.device.queue.writeBuffer(this.computeMaterialData, 0, materialData, 0, materialData.length);
     }
@@ -782,7 +761,40 @@ class RenderingManager {
         this.device.queue.writeBuffer(this.computeOctreeTreeData, 0, octreeData, 0, octreeData.length);
     }
 
+    #SetLights(triangleArray) {
+        let lightTriangleArray = triangleArray.slice().filter(t => this.materials[t.material].emittance > 0);
+
+        let oldSize = (this.computeLightData || { size: 0 }).size / 4
+        let newSize = getNext2Power(lightTriangleArray.length)
+
+        let totalSize = 1 + newSize
+
+        while (totalSize % 4 > 0) {
+            totalSize++;
+        }
+
+        let triangleData = new Float32Array(totalSize);
+
+        if (totalSize > oldSize) {
+            this.computeLightData = this.device.createBuffer({
+                size: triangleData.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            });
+        }
+
+        triangleData[0] = lightTriangleArray.length
+
+        for (let triIndex = 0; triIndex < lightTriangleArray.length; triIndex++) {
+            triangleData[triIndex + 1] = triangleArray.indexOf(lightTriangleArray[triIndex]);
+        }
+
+        console.log(triangleData, triangleArray, 433)
+        this.device.queue.writeBuffer(this.computeLightData, 0, triangleData, 0, triangleData.length);
+    }
+
     SetTriangles(triangleArray, updateOctree, dontUpdateBuffer) {
+        this.#SetLights(triangleArray);
+
         let startIndex = 4;
 
         let oldSize = (this.computeMapData || { size: 0 }).size / 4

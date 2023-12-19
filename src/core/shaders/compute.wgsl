@@ -35,13 +35,12 @@ struct Triangle {
 
 struct Material {
     color: vec3<f32>,
-    padding0: f32,
-
     transparency: f32,
+    
     index_of_refraction: f32,
-
     reflectance: f32,
     emittance: f32,
+    roughness: f32,
 };
 
 struct InputMapData {
@@ -52,6 +51,11 @@ struct InputMapData {
     triangles: array<Triangle>,
 };
 
+struct InputLightData {
+    triangle_count: f32,
+    triangles: array<f32>,
+};
+
 struct Pixel {
     noisy_color: vec4<f32>,
     albedo: vec3<f32>,
@@ -60,6 +64,7 @@ struct Pixel {
     depth: f32,
     object_id: f32,
     intersection: vec3<f32>,
+    seed: f32,
 }
 
 struct TemportalData {
@@ -94,9 +99,9 @@ struct OutputTextureData {
 @group(0) @binding(0) var<storage, read> inputData: InputGlobalData;
 
 @group(1) @binding(0) var<storage, read> inputMap: InputMapData;
-@group(1) @binding(1) var<storage, read> inputMaterials: array<Material>;
-@group(1) @binding(2) var<storage, read> inputTreeParts: array<TreePart>;
-
+@group(1) @binding(1) var<storage, read> inputLightMap: InputLightData;
+@group(1) @binding(2) var<storage, read> inputMaterials: array<Material>;
+@group(1) @binding(3) var<storage, read> inputTreeParts: array<TreePart>;
 
 @group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(1) var image_normal_texture: texture_storage_2d<rgba16float, write>;

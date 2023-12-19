@@ -50,7 +50,7 @@ fn calculatePixelColor(
     var pixelModifier = random2Vec2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
-    var realPixel = pixel + pixelModifier.output / 2;
+    var realPixel = pixel + pixelModifier.output;
 
     let direction = calculatePixelDirection(realPixel);
     let start = inputData.CameraPosition;
@@ -63,7 +63,7 @@ fn calculatePixelColor(
     //traceOutput.velocity = (temporalData.rayDirection - direction).xy;
 
     output.pixel = traceOutput;
-    output.seed = pixelHash;
+    output.seed = traceOutput.seed;
     //output.temporalData = calculateTemporalData(realPixel, traceOutput, start, direction);
 
     return output;

@@ -34,6 +34,9 @@ function parseMAT(mat) {
             case 'Re':
                 result[lastMaterial].reflectance = parseFloat(parts[0])
                 break;
+            case 'Rg':
+                result[lastMaterial].roughtness = parseFloat(parts[0])
+                break;
             case 'Tr':
                 result[lastMaterial].transparency = parseFloat(parts[0])
                 break;

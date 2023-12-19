@@ -1,10 +1,10 @@
 fn hash(input: u32) -> u32 {
     var x = input;
 
-    x += ( x << 10u );
-    x ^= ( x >>  6u );
+    x += (x << 10u);
+    x ^= ( x >>  6u ) * x;
     x += ( x <<  3u );
-    x ^= ( x >> 11u );
+    x ^= ( x >> 11u ) * x * x;
     x += ( x << 15u );
     
     return x;
