@@ -38,6 +38,10 @@ fn randomVec2(seed: f32, vec: vec2<f32>) -> f32 {
     return random(seed + vec.x * 0.44 - vec.y);
 }
 
+fn randomVec3(seed: f32, vec: vec3<f32>) -> f32 {
+    return random(seed + vec.x * 0.44 - vec.y * vec.z);
+}
+
 fn random2Vec2(seed: f32, vec: vec2<f32>) -> Random3Vec2Output {
     var output: Random3Vec2Output;
     var seedValue = randomVec2(seed, vec);
@@ -64,7 +68,7 @@ fn random3Vec3(seed: f32, vec: vec3<f32>) -> Random3Vec3Output {
     vector -= vec4<f32>(0.5);
     vector *= 2;
 
-    output.seed = random(vector.y + seed * .65376464 + vector.x - vector.z * vector.w);
+    output.seed = random(vector.y + vector.x - vector.z * vector.w);
     output.output = vector.wxz;
     
     return output;
@@ -82,7 +86,7 @@ fn randomPoint2(seed: f32, position: vec2<f32>) -> Random3Vec2Output {
     return output;
 }
 
-fn randomPointInCircle(seed: f32, position: vec3<f32>) -> Random3Vec3Output {
+/*fn randomPointInCircle(seed: f32, position: vec3<f32>) -> Random3Vec3Output {
     var outputSeed = seed;
 
     var tries = 0;
@@ -96,6 +100,26 @@ fn randomPointInCircle(seed: f32, position: vec3<f32>) -> Random3Vec3Output {
 
     output.output = normalize(output.output);
     output.seed = outputSeed;
+
+    return output;
+}*/
+
+fn randomPointInCircle(seed: f32, position: vec3<f32>) -> Random3Vec3Output {
+    var output: Random3Vec3Output;
+
+    let newSeed = randomVec3(seed, position);
+    let u1 = random(newSeed);
+    let u2 = random(u1);
+
+    let phi = acos(2.0 * u1 - 1.0) - 3.14159265359 / 2.0;
+    let lambda = 2.0 * 3.14159265359 * u2;
+
+    let x = cos(phi) * cos(lambda);
+    let y = cos(phi) * sin(lambda);
+    let z = sin(phi);
+
+    output.output = vec3<f32>(x, y, z);
+    output.seed = u2;
 
     return output;
 }

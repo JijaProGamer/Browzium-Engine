@@ -84,20 +84,28 @@ fn RandomPointOnTriangle(
     let triIndex = u32(floor(pixelHash * inputLightMap.triangle_count));
     let tri = inputMap.triangles[u32(inputLightMap.triangles[triIndex])];
 
-    let gotoDirection = RandomPointOnTriangle(tri, pixelHash);
-    let ray_direction = normalize(gotoDirection.xyz - rayPosition);
-    pixelHash = gotoDirection.w;
+    let lightSample = RandomPointOnTriangle(tri, pixelHash);
+    let lightPosition = lightSample.xyz;
 
-    let intersection = get_ray_intersection(rayPosition, ray_direction);
+    let shadowRayDirection = normalize(lightPosition - rayPosition);
+    let shadowIntersection = get_ray_intersection(rayPosition, shadowRayDirection);
 
-    if (intersection.hit && intersection.object_id == tri.object_id) {
+    if (shadowIntersection.hit && shadowIntersection.object_id == tri.object_id) {
         let material = inputMaterials[i32(tri.material_index)];
-        output.color = material.emittance * material.color;
+
+        //let P = -dot(shadowRayDirection, shadowIntersection.normal) / dot(lightPosition - rayPosition, lightPosition - rayPosition);
+        //output.color = material.emittance * material.color * P * (dot(shadowRayDirection, shadowIntersection.normal) / 3.141592);
+
+        let cos_theta = dot(-shadowRayDirection, shadowIntersection.normal);
+        let brdf = (material.emittance * material.color) / 3.141592;
+        let color = brdf * cos_theta / (1 / (2 * 3.141592));
+
+        output.color =  color;
+        output.hit = shadowIntersection;
     }
 
-    output.seed = pixelHash;
-    output.direction = ray_direction;
-    output.hit = intersection;
+    output.seed = lightSample.w;
+    output.direction = shadowRayDirection;
 
     return output;
 }*/
@@ -121,9 +129,12 @@ fn CalculateDirect(
     if (shadowIntersection.hit && shadowIntersection.object_id == tri.object_id) {
         let material = inputMaterials[i32(tri.material_index)];
 
-        //let P = -dot(shadowRayDirection, shadowIntersection.normal) / dot(lightPosition - rayPosition, lightPosition - rayPosition);
-        //output.color = material.emittance * material.color * P * (dot(shadowRayDirection, shadowIntersection.normal) / 3.141592);
-        output.color = material.emittance * material.color;
+        let cos_theta = dot(-shadowRayDirection, shadowIntersection.normal);
+        let brdf = material.color / 3.141592;
+        let color = brdf * cos_theta /  (1 / (2 * 3.141592));
+        output.color = color;
+
+        //output.color = material.color;
         output.hit = shadowIntersection;
     }
 
@@ -190,14 +201,14 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var reflected = (max(1 - material.emittance, 0) * material.color);
         pixelHash = BRDFDirectionValue.outputHash;
 
-        //var directIncoming = CalculateDirect(intersection.position, pixelHash);
+        var directIncoming = CalculateDirect(intersection.position, pixelHash);
         var indirectIncoming = material.color * material.emittance;
         var weightIncoming = 1.0; 
         if(depth > 0) {weightIncoming = 0.5;}
 
-        emittance = indirectIncoming;
-        //emittance = weightIncoming * (indirectIncoming + directIncoming.color);
-        //pixelHash = directIncoming.seed;
+        //emittance = indirectIncoming;
+        emittance = weightIncoming * (indirectIncoming + directIncoming.color);
+        pixelHash = directIncoming.seed;
 
         gatherDenoisingData = depth == 0 && BRDFDirectionValue.isSpecular == true;
         output.noisy_color += vec4<f32>(rayColour * emittance, 0);
@@ -231,8 +242,12 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     }
 
     let directIncoming = CalculateDirect(intersection.position, rawPixelHash);
-    if(directIncoming.x + directIncoming.y + directIncoming.z > 0 || material.emittance > 0){
-        output.albedo = material.color;
+    if(directIncoming.color.x + directIncoming.color.y + directIncoming.color.z > 0){
+        output.albedo = material.color * directIncoming.color;
+    }
+
+    if(material.emittance > 0){
+        output.albedo = material.color * material.emittance;
     }
 
     return output;

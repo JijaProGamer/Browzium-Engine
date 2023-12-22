@@ -25,6 +25,7 @@
         width: 80vw;
         height: 80vh;
         display: block;
+        touch-action: manipulation; 
     }
 
     h1,
@@ -106,7 +107,7 @@
     await GameEngine.AwaitPageActivation()
     await GameEngine.InitActivation()
 
-    GameEngine.Renderer.tonemapMode = 0;
+    GameEngine.Renderer.tonemapMode = 1;
     GameEngine.Renderer.gammaCorrect = true;
     GameEngine.Renderer.denoiser = "none";
 
@@ -178,6 +179,21 @@
 
         GameEngine.Camera.SetOrientationEuler(orientation)
     }
+
+    function updateTouchOrientation(e) {
+        const movementX = e.touches[0].clientX - e.touches[0].clientX;
+        const movementY = e.touches[0].clientY - e.touches[0].clientY;
+        updateOrientation({ movementX, movementY });
+    }
+
+    canvas.addEventListener("touchstart", (e) => {
+        if (!document.pointerLockElement && (performance.now() - lastAsked) >= 1500) {
+            canvas.requestPointerLock({ unadjustedMovement: true });
+        }
+    });
+
+    canvas.addEventListener("touchmove", updateTouchOrientation);
+
 
     // Camera position
 
@@ -363,8 +379,8 @@
 
     // Scene stuff
 
-    let cornellBox = OBJParser(await (await fetch("./maps/cornell_simple/map.obj")).text(), {
-        "map": await (await fetch("./maps/cornell_simple/map.mtl")).text()
+    let cornellBox = OBJParser(await (await fetch("/maps/cornell_simple/map.obj")).text(), {
+        "map": await (await fetch("/maps/cornell_simple/map.mtl")).text()
     }, {
         objectIdentityMode: "perObject"
     })
