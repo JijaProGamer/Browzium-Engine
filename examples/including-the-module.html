@@ -106,7 +106,7 @@
     await GameEngine.AwaitPageActivation()
     await GameEngine.InitActivation()
 
-    GameEngine.Renderer.tonemapMode = 1;
+    GameEngine.Renderer.tonemapMode = 0;
     GameEngine.Renderer.gammaCorrect = true;
     GameEngine.Renderer.denoiser = "none";
 
@@ -363,8 +363,8 @@
 
     // Scene stuff
 
-    let cornellBox = OBJParser(await (await fetch("./maps/cornell_low_light/map.obj")).text(), {
-        "map": await (await fetch("./maps/cornell_low_light/map.mtl")).text()
+    let cornellBox = OBJParser(await (await fetch("./maps/cornell_simple/map.obj")).text(), {
+        "map": await (await fetch("./maps/cornell_simple/map.mtl")).text()
     }, {
         objectIdentityMode: "perObject"
     })

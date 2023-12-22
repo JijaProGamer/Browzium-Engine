@@ -53,6 +53,54 @@ fn isNan(num: f32) -> bool {
 }
 
 @compute @workgroup_size(16, 16, 1) 
+/*fn computeMain(
+    @builtin(global_invocation_id) global_invocation_id: vec3<u32>,
+    @builtin(num_workgroups) num_workgroups: vec3<u32>,
+    @builtin(workgroup_id) workgroup_id: vec3<u32>
+) {
+    var accumulatedColor = vec4<f32>(0.0);
+    
+    let cval = textureLoad(colorMap, global_invocation_id.xy, 0);
+    let nval = textureLoad(normalMap, global_invocation_id.xy, 0);
+    let pval = textureLoad(depthMap, global_invocation_id.xy, 0);
+    let oval = textureLoad(objectMap, global_invocation_id.xy, 0).x;
+    
+    var cum_w = 0.0;
+    for(var i: i32 = 0; i < 25; i++)
+    {
+        let tempUV = vec2<f32>(global_invocation_id.xy) + offset[i] * inputFilteringData.stepwidth;
+        if(tempUV.x < 0 || tempUV.y < 0 || tempUV.x >= inputData.resolution.x || tempUV.y >= inputData.resolution.y) { continue; }
+
+        let uv = vec2<u32>(tempUV);
+        let neighborObject = textureLoad(objectMap, uv, 0).x;
+        if(neighborObject != oval){ continue; }
+
+        let ctmp = textureLoad(colorMap, uv, 0);
+
+        /*var t = cval - ctmp;
+        var dist2 = dot(t,t);
+        let weight = min(exp(-(dist2)/inputFilteringData.c_phi), 1.0);*/
+        let weight = 1.0;
+        
+        accumulatedColor += ctmp * weight * kernel[i];
+        cum_w += weight * kernel[i];
+    }
+
+    accumulatedColor /=  cum_w;
+
+    if(accumulatedColor.a > 0){
+        accumulatedColor.a = 1;
+    }
+
+    if (inputFilteringData.maxStep == 1) {
+        let originalAlpha = accumulatedColor.a;
+        accumulatedColor *= textureLoad(albedoMap, global_invocation_id.xy, 0);
+        accumulatedColor.a = originalAlpha;
+    }
+
+    textureStore(output, global_invocation_id.xy, accumulatedColor);
+}*/
+
 fn computeMain(
     @builtin(global_invocation_id) global_invocation_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
