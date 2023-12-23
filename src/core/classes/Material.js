@@ -6,7 +6,7 @@ class Material {
     specular = new Vector3(0, 0, 0)
     
     specularWeight = 0.5
-    transparency = 1
+    transparency = 0
     index_of_refraction = 0
     illumination_mode = 0
     reflectance = 0

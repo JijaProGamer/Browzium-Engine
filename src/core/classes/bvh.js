@@ -25,12 +25,10 @@ class BVHTree {
     child2;
 
     objects = [];
-    triangleArray;
 
     constructor(minPosition, maxPosition, triangleArray) {
         this.minPosition = minPosition;
         this.maxPosition = maxPosition;
-        this.triangleArray = triangleArray;
 
         for (let triangleIndex = 0; triangleIndex < triangleArray.length; triangleIndex++) {
             let triangle = triangleArray[triangleIndex];
@@ -49,38 +47,22 @@ class BVHTree {
     }
 
     subdivide(triangleArray) {
-        /*const size = Vector3.subtract(this.maxPosition, this.minPosition).multiplyScalar(1/2);
-        const splitAxis = Math.abs(size.x) > Math.abs(size.y) ? (Math.abs(size.x) > Math.abs(size.z) ? 'x' : 'z') : (Math.abs(size.y) > Math.abs(size.z) ? 'y' : 'z');
-        const splitPosition = Vector3.add(this.minPosition, new Vector3(size.x * (splitAxis == "x"), size.y * (splitAxis == "y"), size.z * (splitAxis == "z")))
+        let SAHResults = []
 
-        const minPositionChild1 = this.minPosition.copy();
-        const maxPositionChild1 = splitPosition;
-    
-        const minPositionChild2 = splitPosition;
-        const maxPositionChild2 = this.maxPosition.copy();
-
-        const trianglesChild1 = [];
-        const trianglesChild2 = [];
-
-        for (let triangleIndex = 0; triangleIndex < triangleArray.length; triangleIndex++) {
-            let triangle = triangleArray[triangleIndex];
-
-            if (BVHTree.triangleIntersectsLeaf(triangle, minPositionChild1, maxPositionChild1)) {
-                trianglesChild1.push(triangle)
-            }
-
-            if (BVHTree.triangleIntersectsLeaf(triangle, minPositionChild2, maxPositionChild2)) {
-                trianglesChild2.push(triangle)
+        for (let axis = 0; axis < 3; axis++) {
+            for (let distance = 0; distance <= 1; distance += 0.05) {
+                SAHResults.push(this.calculateDivisionSAH(axis, distance, triangleArray));
             }
         }
-    
-        this.child1 = new BVHTree(minPositionChild1, maxPositionChild1, trianglesChild1);
-        this.child2 = new BVHTree(minPositionChild2, maxPositionChild2, trianglesChild2);*/
 
-        console.log(this.calculateDivisionSAH(0, 0.35))
+        SAHResults.sort((a, b) => a.SAH - b.SAH)
+        let bestResult = SAHResults[0]
+
+        this.child1 = new BVHTree(bestResult.child1.minPosition, bestResult.child1.maxPosition, triangleArray);
+        this.child2 = new BVHTree(bestResult.child2.minPosition, bestResult.child2.maxPosition, triangleArray);
     }
 
-    calculateDivisionSAH(axis, distance){
+    calculateDivisionSAH(axis, distance, triangleArray) {
         let distancePosition = Vector3.subtract(this.maxPosition, this.minPosition).multiplyScalar(distance);
         let splitPosition = Vector3.add(this.minPosition, new Vector3(distancePosition.x * (axis == 0), distancePosition.y * (axis == 1), distancePosition.z * (axis == 2)))
 
@@ -96,8 +78,8 @@ class BVHTree {
             children: []
         }
 
-        for (let triangleIndex = 0; triangleIndex < this.triangleArray.length; triangleIndex++) {
-            let triangle = this.triangleArray[triangleIndex];
+        for (let triangleIndex = 0; triangleIndex < triangleArray.length; triangleIndex++) {
+            let triangle = triangleArray[triangleIndex];
 
             if (BVHTree.triangleIntersectsLeaf(triangle, child1.minPosition, child1.maxPosition)) {
                 child1.children.push(triangle)
@@ -108,10 +90,13 @@ class BVHTree {
             }
         }
 
-        return BVHTree.SAH(1, 2, child1, child2, this);
+        return {
+            SAH: this.SAH(1, 2, child1, child2, this),
+            child1, child2
+        };
     }
 
-    SAH(tTraversal, tIntersect, child1, child2){
+    SAH(tTraversal, tIntersect, child1, child2) {
         const sA = calculateSurfaceArea(child1.minPosition, child1.maxPosition)
         const sB = calculateSurfaceArea(child2.minPosition, child2.maxPosition)
         const sC = calculateSurfaceArea(this.minPosition, this.maxPosition);
@@ -125,28 +110,21 @@ class BVHTree {
         return tTraversal + (pA * N_A * tIntersect) + (pB * N_B * tIntersect)
     }
 
-    /*static triangleIntersectsLeaf(triangle) {
-        const min = this.minPosition;
-        const max = this.maxPosition;
-
-        if (
-            triangle.a.x >= min.x && triangle.a.x <= max.x &&
-            triangle.a.y >= min.y && triangle.a.y <= max.y &&
-            triangle.a.z >= min.z && triangle.a.z <= max.z &&
-            triangle.b.x >= min.x && triangle.b.x <= max.x &&
-            triangle.b.y >= min.y && triangle.b.y <= max.y &&
-            triangle.b.z >= min.z && triangle.b.z <= max.z &&
-            triangle.c.x >= min.x && triangle.c.x <= max.x &&
-            triangle.c.y >= min.y && triangle.c.y <= max.y &&
-            triangle.c.z >= min.z && triangle.c.z <= max.z
-        ) {
-            return true;
-        }
-
-        return false;
-    }*/
-
     static triangleIntersectsLeaf(triangle, min, max) {
+        return BVHTree.isPointInsideBox(triangle.a, min, max) ||
+            BVHTree.isPointInsideBox(triangle.b, min, max) ||
+            BVHTree.isPointInsideBox(triangle.c, min, max)
+    }
+
+    static isPointInsideBox(point, min, max) {
+        return (
+            point.x >= min.x && point.x <= max.x &&
+            point.y >= min.y && point.y <= max.y &&
+            point.z >= min.z && point.z <= max.z
+        );
+    }
+
+    /*static triangleIntersectsLeaf(triangle, min, max) {
         let centroid = triangle.getCentroid();
         if(min.x > max.x && min.y > max.y && min.y > max.y){
             let temp = min;
@@ -163,7 +141,7 @@ class BVHTree {
         }
 
         return false;
-    }
+    }*/
 
     /*static triangleIntersectsLeaf(triangle, p, dpp) {
         // Triangle normal

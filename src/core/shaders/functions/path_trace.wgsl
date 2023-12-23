@@ -15,6 +15,7 @@ fn NoHit(
 
 struct BRDFDirectionOutput {
     isSpecular: bool,
+    isTransparent: bool,
     direction: vec3<f32>,
     outputHash: f32,
 }
@@ -24,30 +25,6 @@ struct DirectCalculationOutput {
     direction: vec3<f32>,
     seed: f32,
     hit: HitResult,
-}
-
-fn BRDFDirection(
-    intersection: HitResult,
-    oldDirection: vec3<f32>,
-    rawHash: f32,
-) -> BRDFDirectionOutput { 
-    var output: BRDFDirectionOutput;
-    var pixelHash = rawHash;
-    let doSpecular = random(pixelHash) <= intersection.material.reflectance;
-    
-    var diffuseDirectionValue = randomPointInCircle(pixelHash, intersection.position);
-    pixelHash = diffuseDirectionValue.seed;
-
-    let reflectedDir = (oldDirection - 2.0 * dot(oldDirection, intersection.normal) * intersection.normal);
-    let diffuseDirection = normalize(intersection.normal + diffuseDirectionValue.output);
-    let specularDir = normalize(mix(reflectedDir, diffuseDirection, intersection.material.roughness));
-    let outputDir = mix(diffuseDirection, specularDir, f32(doSpecular));
-
-    output.isSpecular = doSpecular;
-    output.direction = outputDir;
-    output.outputHash = pixelHash;
-
-    return output;
 }
 
 fn RandomPointOnTriangle(
@@ -116,7 +93,7 @@ fn CalculateDirect(
 ) -> DirectCalculationOutput {
     var output: DirectCalculationOutput;
 
-    var pixelHash = rawPixelHash;
+    var pixelHash = random(rawPixelHash);
     let triIndex = u32(floor(pixelHash * inputLightMap.triangle_count));
     let tri = inputMap.triangles[u32(inputLightMap.triangles[triIndex])];
 
@@ -134,7 +111,6 @@ fn CalculateDirect(
         let color = brdf * cos_theta /  (1 / (2 * 3.141592));
         output.color = color;
 
-        //output.color = material.color;
         output.hit = shadowIntersection;
     }
 
@@ -144,10 +120,61 @@ fn CalculateDirect(
     return output;
 }
 
+fn TransparencyDirection(
+    intersection: HitResult,
+    oldDirection: vec3<f32>,
+    rawHash: f32,
+) -> BRDFDirectionOutput {
+    var output: BRDFDirectionOutput;
+    var pixelHash = rawHash;
+    let doTransparency = random(pixelHash) <= intersection.material.transparency;
+    
+    /*var diffuseDirectionValue = randomPointInCircle(pixelHash, intersection.position);
+    pixelHash = diffuseDirectionValue.seed;
 
-const maxDepth: i32 = 2;
+    let reflectedDir = (oldDirection - 2.0 * dot(oldDirection, intersection.normal) * intersection.normal);
+    let diffuseDirection = normalize(intersection.normal + diffuseDirectionValue.output);
+    let specularDir = normalize(mix(reflectedDir, diffuseDirection, intersection.material.roughness));
+    let outputDir = mix(diffuseDirection, specularDir, f32(doSpecular));*/
 
-/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+    output.isTransparent = doTransparency;
+    //output.direction = outputDir;
+    output.outputHash = pixelHash;
+
+    return output;
+}
+
+fn BRDFDirection(
+    intersection: HitResult,
+    oldDirection: vec3<f32>,
+    rawHash: f32,
+) -> BRDFDirectionOutput { 
+    let transparencyOutput = TransparencyDirection(intersection, oldDirection, rawHash);
+    var output: BRDFDirectionOutput;
+    var pixelHash = rawHash;
+
+    if(transparencyOutput.isTransparent){   return transparencyOutput;  }
+
+    let doSpecular = random(pixelHash) <= intersection.material.reflectance;
+    
+    var diffuseDirectionValue = randomPointInCircle(pixelHash, intersection.position);
+    pixelHash = diffuseDirectionValue.seed;
+
+    let reflectedDir = (oldDirection - 2.0 * dot(oldDirection, intersection.normal) * intersection.normal);
+    let diffuseDirection = normalize(intersection.normal + diffuseDirectionValue.output);
+    let specularDir = normalize(mix(reflectedDir, diffuseDirection, intersection.material.roughness));
+    let outputDir = mix(diffuseDirection, specularDir, f32(doSpecular));
+
+    output.isSpecular = doSpecular;
+    output.direction = outputDir;
+    output.outputHash = pixelHash;
+
+    return output;
+}
+
+const maxDepth: i32 = 5;
+
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var intersection: HitResult;
@@ -196,6 +223,11 @@ const maxDepth: i32 = 2;
             break;
         }
 
+        /*if(material.transparency > 0){
+            output.noisy_color = vec4<f32>(1, 0, 0, output.noisy_color.w);
+            break;
+        }*/
+
         let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
         let newDirection = BRDFDirectionValue.direction;
         var reflected = (max(1 - material.emittance, 0) * material.color);
@@ -211,7 +243,7 @@ const maxDepth: i32 = 2;
         emittance = weightIncoming * (indirectIncoming + directIncoming.color);
         pixelHash = directIncoming.seed;
 
-        gatherDenoisingData = depth == 0 && BRDFDirectionValue.isSpecular == true;
+        gatherDenoisingData = depth == 0 && (BRDFDirectionValue.isSpecular || BRDFDirectionValue.isTransparent);
         output.noisy_color += vec4<f32>(rayColour * emittance, 0);
         rayColour *= emittance + reflected;
 
@@ -226,7 +258,7 @@ const maxDepth: i32 = 2;
 
     output.seed = pixelHash;
     return output;
-}*/
+}
 
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -242,7 +274,8 @@ const maxDepth: i32 = 2;
         return output;
     }
 
-    let directIncoming = CalculateDirect(intersection.position, rawPixelHash);
+    var directIncoming = CalculateDirect(intersection.position, rawPixelHash);
+
     if(directIncoming.color.x + directIncoming.color.y + directIncoming.color.z > 0){
         output.albedo = material.color * directIncoming.color;
     }
@@ -254,7 +287,7 @@ const maxDepth: i32 = 2;
     return output;
 }*/
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     if (!hit_octree(start, direction, inputTreeParts[0])) {
@@ -294,7 +327,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     }
 
     return output;
-}
+}*/
 
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;

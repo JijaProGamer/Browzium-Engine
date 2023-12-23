@@ -20,7 +20,7 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
     var result: HitResult;
 
     if(!is_triangle_facing_camera(tri, ray_direction)){
-        //return result;
+        return result;
     }
 
     let edge1 = tri.b - tri.a;
