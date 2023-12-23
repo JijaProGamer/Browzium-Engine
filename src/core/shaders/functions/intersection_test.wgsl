@@ -75,26 +75,6 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
 	return tmin < tmax && tmax > 0;
 }
 
-/*
-fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> bool {
-    var half_extent: vec3<f32> = vec3<f32>(box.halfSize, box.halfSize, box.halfSize);
-    var box_min: vec3<f32> = box.center - half_extent;
-    var box_max: vec3<f32> = box.center + half_extent;
-
-    var t_min: vec3<f32> = (box_min - ray_origin) / ray_direction;
-    var t_max: vec3<f32> = (box_max - ray_origin) / ray_direction;
-
-    var t1: vec3<f32> = min(t_min, t_max);
-    var t2: vec3<f32> = max(t_min, t_max);
-
-    var t_enter: f32 = max(max(t1.x, t1.y), t1.z);
-    var t_exit: f32 = min(min(t2.x, t2.y), t2.z);
-
-    return t_enter <= t_exit;
-}*/
-
-
-
 fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;

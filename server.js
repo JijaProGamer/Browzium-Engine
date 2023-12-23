@@ -4,10 +4,8 @@ const path = require('path');
 
 const server = http.createServer((req, res) => {
     const filePath = path.join(__dirname, mapInput(req.url));
-    console.log(filePath)
 
     fs.readFile(filePath, (err, data) => {
-        console.log(err, data)
         if (err) {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('File not found');

@@ -1,7 +1,7 @@
 class ATrousDenoiser {
     levels = 5;
     levelSteps = []//[1, 3, 5, 8, 11]
-    colorStrenght = 0;
+    colorStrenght = 0.5;
     normalStrenght = 0.5;
     depthStrenght = 0.1;
 

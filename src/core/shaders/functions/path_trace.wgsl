@@ -145,9 +145,9 @@ fn CalculateDirect(
 }
 
 
-const maxDepth: i32 = 5;
+const maxDepth: i32 = 2;
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var intersection: HitResult;
@@ -207,6 +207,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         if(depth > 0) {weightIncoming = 0.5;}
 
         //emittance = indirectIncoming;
+        //emittance = (indirectIncoming + directIncoming.color) / 2;
         emittance = weightIncoming * (indirectIncoming + directIncoming.color);
         pixelHash = directIncoming.seed;
 
@@ -225,7 +226,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 
     output.seed = pixelHash;
     return output;
-}
+}*/
 
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -253,23 +254,47 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     return output;
 }*/
 
-/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     if (!hit_octree(start, direction, inputTreeParts[0])) {
         output.noisy_color = vec4<f32>(1);
         output.albedo = NoHit(direction, start);
     } else {
+        var maxChildren = 1;
+
+        var stack: array<TreePart, 64>;
+        var stackIndex: i32 = 0;
+
+        stack[stackIndex] = inputTreeParts[0];
+        stackIndex++;
+
+        while (stackIndex > 0) {
+            stackIndex--;
+            let currentBox = stack[stackIndex];
+
+            let hit = hit_octree(start, direction, currentBox);
+
+            if (hit && currentBox.child1 > -1.0) {
+                maxChildren += 2;
+
+                stack[stackIndex] = inputTreeParts[i32(currentBox.child1)];
+                stackIndex++;
+                stack[stackIndex] = inputTreeParts[i32(currentBox.child2)];
+                stackIndex++;
+            }
+        }
+
         output.noisy_color = vec4<f32>(1);
-        for(var i = 1; i < 7; i++){
+        for(var i = 0; i < maxChildren; i++){
             if(hit_octree(start, direction, inputTreeParts[i])){
-                output.albedo = vec3<f32>(f32(i - 1) / 6, 1, 0);
+                output.albedo = vec3<f32>(f32(i) / f32(maxChildren), 1, 0);
             }
         }
     }
 
     return output;
-}*/
+}
 
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;

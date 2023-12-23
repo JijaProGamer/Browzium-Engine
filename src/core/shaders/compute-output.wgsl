@@ -307,26 +307,6 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
 	return tmin < tmax && tmax > 0;
 }
 
-/*
-fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) -> bool {
-    var half_extent: vec3<f32> = vec3<f32>(box.halfSize, box.halfSize, box.halfSize);
-    var box_min: vec3<f32> = box.center - half_extent;
-    var box_max: vec3<f32> = box.center + half_extent;
-
-    var t_min: vec3<f32> = (box_min - ray_origin) / ray_direction;
-    var t_max: vec3<f32> = (box_max - ray_origin) / ray_direction;
-
-    var t1: vec3<f32> = min(t_min, t_max);
-    var t2: vec3<f32> = max(t_min, t_max);
-
-    var t_enter: f32 = max(max(t1.x, t1.y), t1.z);
-    var t_exit: f32 = min(min(t2.x, t2.y), t2.z);
-
-    return t_enter <= t_exit;
-}*/
-
-
-
 fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
@@ -683,9 +663,9 @@ fn CalculateDirect(
 }
 
 
-const maxDepth: i32 = 5;
+const maxDepth: i32 = 2;
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var intersection: HitResult;
@@ -745,6 +725,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         if(depth > 0) {weightIncoming = 0.5;}
 
         //emittance = indirectIncoming;
+        //emittance = (indirectIncoming + directIncoming.color) / 2;
         emittance = weightIncoming * (indirectIncoming + directIncoming.color);
         pixelHash = directIncoming.seed;
 
@@ -763,7 +744,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 
     output.seed = pixelHash;
     return output;
-}
+}*/
 
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -791,23 +772,47 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     return output;
 }*/
 
-/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     if (!hit_octree(start, direction, inputTreeParts[0])) {
         output.noisy_color = vec4<f32>(1);
         output.albedo = NoHit(direction, start);
     } else {
+        var maxChildren = 1;
+
+        var stack: array<TreePart, 64>;
+        var stackIndex: i32 = 0;
+
+        stack[stackIndex] = inputTreeParts[0];
+        stackIndex++;
+
+        while (stackIndex > 0) {
+            stackIndex--;
+            let currentBox = stack[stackIndex];
+
+            let hit = hit_octree(start, direction, currentBox);
+
+            if (hit && currentBox.child1 > -1.0) {
+                maxChildren += 2;
+
+                stack[stackIndex] = inputTreeParts[i32(currentBox.child1)];
+                stackIndex++;
+                stack[stackIndex] = inputTreeParts[i32(currentBox.child2)];
+                stackIndex++;
+            }
+        }
+
         output.noisy_color = vec4<f32>(1);
-        for(var i = 1; i < 7; i++){
+        for(var i = 0; i < maxChildren; i++){
             if(hit_octree(start, direction, inputTreeParts[i])){
-                output.albedo = vec3<f32>(f32(i - 1) / 6, 1, 0);
+                output.albedo = vec3<f32>(f32(i) / f32(maxChildren), 1, 0);
             }
         }
     }
 
     return output;
-}*/
+}
 
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -915,6 +920,7 @@ fn computeMain(
     var avarageDepth: f32;
 
     var maxRays: f32 = 1;
+    var raysDone: f32 = 0;
     //var maxRays: f32 = 5;
     var seed = image_history_data.totalFrames;
     var object: f32 = 0;
@@ -922,12 +928,14 @@ fn computeMain(
     for(var rayNum = 0; rayNum < i32(maxRays); rayNum++){
         let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy), seed);
         seed = pixelData.seed;
+        if(isNan(pixelData.pixel.noisy_color.x) || isNan(pixelData.pixel.noisy_color.y) || isNan(pixelData.pixel.noisy_color.z)){ return; }
 
         avarageColor += pixelData.pixel.noisy_color;
         avarageAlbedo += pixelData.pixel.albedo;
         avarageNormal += pixelData.pixel.normal;
         avarageDepth += pixelData.pixel.depth;
 
+        raysDone += 1;
         averageIntersection += pixelData.pixel.intersection;
         object = pixelData.pixel.object_id;
     }
@@ -935,10 +943,9 @@ fn computeMain(
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
 
-    //if(isNan(avarageColor.x) || isNan(avarageColor.y) || isNan(avarageColor.z)){ return; }
-    textureStore(image_color_texture, global_invocation_id.xy, avarageColor / maxRays);
-    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
-    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));
-    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(averageIntersection / maxRays, avarageDepth / maxRays));
+    textureStore(image_color_texture, global_invocation_id.xy, avarageColor / raysDone);
+    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / raysDone, 0));
+    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / raysDone, 0));
+    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(averageIntersection / raysDone, avarageDepth / raysDone));
     textureStore(image_object_texture, global_invocation_id.xy, vec4<f32>(object, 0, 0, 0));
 }

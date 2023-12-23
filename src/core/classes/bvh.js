@@ -1,4 +1,5 @@
 import Vector3 from "./Vector3.js";
+
 function updateMinMax(min, max, point) {
     min.x = Math.min(min.x, point.x);
     min.y = Math.min(min.y, point.y);
@@ -9,6 +10,13 @@ function updateMinMax(min, max, point) {
     max.z = Math.max(max.z, point.z);
 }
 
+function calculateSurfaceArea(min, max) {
+    const width = max.x - min.x;
+    const height = max.y - min.y;
+    const depth = max.z - min.z;
+    return 2 * (width * height + height * depth + depth * width);
+}
+
 class BVHTree {
     minPosition;
     maxPosition;
@@ -17,10 +25,12 @@ class BVHTree {
     child2;
 
     objects = [];
+    triangleArray;
 
     constructor(minPosition, maxPosition, triangleArray) {
         this.minPosition = minPosition;
         this.maxPosition = maxPosition;
+        this.triangleArray = triangleArray;
 
         for (let triangleIndex = 0; triangleIndex < triangleArray.length; triangleIndex++) {
             let triangle = triangleArray[triangleIndex];
@@ -39,7 +49,7 @@ class BVHTree {
     }
 
     subdivide(triangleArray) {
-        const size = Vector3.subtract(this.maxPosition, this.minPosition).multiplyScalar(1/2);
+        /*const size = Vector3.subtract(this.maxPosition, this.minPosition).multiplyScalar(1/2);
         const splitAxis = Math.abs(size.x) > Math.abs(size.y) ? (Math.abs(size.x) > Math.abs(size.z) ? 'x' : 'z') : (Math.abs(size.y) > Math.abs(size.z) ? 'y' : 'z');
         const splitPosition = Vector3.add(this.minPosition, new Vector3(size.x * (splitAxis == "x"), size.y * (splitAxis == "y"), size.z * (splitAxis == "z")))
 
@@ -65,7 +75,54 @@ class BVHTree {
         }
     
         this.child1 = new BVHTree(minPositionChild1, maxPositionChild1, trianglesChild1);
-        this.child2 = new BVHTree(minPositionChild2, maxPositionChild2, trianglesChild2);
+        this.child2 = new BVHTree(minPositionChild2, maxPositionChild2, trianglesChild2);*/
+
+        console.log(this.calculateDivisionSAH(0, 0.35))
+    }
+
+    calculateDivisionSAH(axis, distance){
+        let distancePosition = Vector3.subtract(this.maxPosition, this.minPosition).multiplyScalar(distance);
+        let splitPosition = Vector3.add(this.minPosition, new Vector3(distancePosition.x * (axis == 0), distancePosition.y * (axis == 1), distancePosition.z * (axis == 2)))
+
+        let child1 = {
+            minPosition: this.minPosition,
+            maxPosition: splitPosition,
+            children: []
+        }
+
+        let child2 = {
+            minPosition: splitPosition,
+            maxPosition: this.maxPosition,
+            children: []
+        }
+
+        for (let triangleIndex = 0; triangleIndex < this.triangleArray.length; triangleIndex++) {
+            let triangle = this.triangleArray[triangleIndex];
+
+            if (BVHTree.triangleIntersectsLeaf(triangle, child1.minPosition, child1.maxPosition)) {
+                child1.children.push(triangle)
+            }
+
+            if (BVHTree.triangleIntersectsLeaf(triangle, child2.minPosition, child2.maxPosition)) {
+                child2.children.push(triangle)
+            }
+        }
+
+        return BVHTree.SAH(1, 2, child1, child2, this);
+    }
+
+    SAH(tTraversal, tIntersect, child1, child2){
+        const sA = calculateSurfaceArea(child1.minPosition, child1.maxPosition)
+        const sB = calculateSurfaceArea(child2.minPosition, child2.maxPosition)
+        const sC = calculateSurfaceArea(this.minPosition, this.maxPosition);
+
+        const pA = sA / sC;
+        const pB = sB / sC;
+
+        const N_A = child1.children.length;
+        const N_B = child2.children.length;
+
+        return tTraversal + (pA * N_A * tIntersect) + (pB * N_B * tIntersect)
     }
 
     /*static triangleIntersectsLeaf(triangle) {

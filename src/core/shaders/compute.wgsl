@@ -136,6 +136,7 @@ fn computeMain(
     var avarageDepth: f32;
 
     var maxRays: f32 = 1;
+    var raysDone: f32 = 0;
     //var maxRays: f32 = 5;
     var seed = image_history_data.totalFrames;
     var object: f32 = 0;
@@ -143,12 +144,14 @@ fn computeMain(
     for(var rayNum = 0; rayNum < i32(maxRays); rayNum++){
         let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy), seed);
         seed = pixelData.seed;
+        if(isNan(pixelData.pixel.noisy_color.x) || isNan(pixelData.pixel.noisy_color.y) || isNan(pixelData.pixel.noisy_color.z)){ return; }
 
         avarageColor += pixelData.pixel.noisy_color;
         avarageAlbedo += pixelData.pixel.albedo;
         avarageNormal += pixelData.pixel.normal;
         avarageDepth += pixelData.pixel.depth;
 
+        raysDone += 1;
         averageIntersection += pixelData.pixel.intersection;
         object = pixelData.pixel.object_id;
     }
@@ -156,10 +159,9 @@ fn computeMain(
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
 
-    //if(isNan(avarageColor.x) || isNan(avarageColor.y) || isNan(avarageColor.z)){ return; }
-    textureStore(image_color_texture, global_invocation_id.xy, avarageColor / maxRays);
-    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / maxRays, 0));
-    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / maxRays, 0));
-    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(averageIntersection / maxRays, avarageDepth / maxRays));
+    textureStore(image_color_texture, global_invocation_id.xy, avarageColor / raysDone);
+    textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / raysDone, 0));
+    textureStore(image_normal_texture, global_invocation_id.xy, vec4<f32>(avarageNormal / raysDone, 0));
+    textureStore(image_depth_texture, global_invocation_id.xy, vec4<f32>(averageIntersection / raysDone, avarageDepth / raysDone));
     textureStore(image_object_texture, global_invocation_id.xy, vec4<f32>(object, 0, 0, 0));
 }
