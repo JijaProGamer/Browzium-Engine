@@ -120,6 +120,18 @@ fn CalculateDirect(
     return output;
 }
 
+fn refract(incident: vec3<f32>,normal: vec3<f32>, eta: f32) -> vec3<f32> {
+    let cosI = dot(-incident, normal);
+    let sinT2 = eta * eta * (1.0 - cosI * cosI);
+
+    if (sinT2 > 1.0) {
+        return incident - 2.0 * dot(incident, normal) * normal;
+    } else {
+        let cosT = sqrt(1.0 - sinT2);
+        return eta * incident + (eta * cosI - cosT) * normal;
+    }
+}
+
 fn TransparencyDirection(
     intersection: HitResult,
     oldDirection: vec3<f32>,
@@ -129,16 +141,11 @@ fn TransparencyDirection(
     var pixelHash = rawHash;
     let doTransparency = random(pixelHash) <= intersection.material.transparency;
     
-    /*var diffuseDirectionValue = randomPointInCircle(pixelHash, intersection.position);
-    pixelHash = diffuseDirectionValue.seed;
-
-    let reflectedDir = (oldDirection - 2.0 * dot(oldDirection, intersection.normal) * intersection.normal);
-    let diffuseDirection = normalize(intersection.normal + diffuseDirectionValue.output);
-    let specularDir = normalize(mix(reflectedDir, diffuseDirection, intersection.material.roughness));
-    let outputDir = mix(diffuseDirection, specularDir, f32(doSpecular));*/
-
+    let eta = 1.0 / intersection.material.index_of_refraction;
+    let transmittedDir = refract(oldDirection, intersection.normal, eta);
+    
     output.isTransparent = doTransparency;
-    //output.direction = outputDir;
+    output.direction = transmittedDir;
     output.outputHash = pixelHash;
 
     return output;
@@ -229,7 +236,6 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         }*/
 
         let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
-        let newDirection = BRDFDirectionValue.direction;
         var reflected = (max(1 - material.emittance, 0) * material.color);
         pixelHash = BRDFDirectionValue.outputHash;
 
@@ -248,7 +254,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         rayColour *= emittance + reflected;
 
         realStart = intersection.position;
-        realDirection = newDirection;
+        realDirection = BRDFDirectionValue.direction;
     }
 
     output.noisy_color.w = length(output.noisy_color.xyz / emittance);
