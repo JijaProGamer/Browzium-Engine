@@ -8,7 +8,7 @@ import emptyDenoiser from "./denoiser/none";
 
 
 let triangleStride = (3 * 4) + (3 * 4) + 4;
-let materialStride = 4 + 4;
+let materialStride = 4 + 4 + 4;
 let octreeBranchStride = 4 + 4 + 4 + 8;
 
 function getNext2Power(n) {
@@ -371,17 +371,22 @@ class RenderingManager {
                 {
                     binding: 4,
                     visibility: GPUShaderStage.COMPUTE,
-                    type: "sampler",
+                    texture: {
+                        format: "rgba16float",
+                        multisampled: false,
+                        viewDimension: "2d-array",
+                    }
                 },
                 {
                     binding: 5,
                     visibility: GPUShaderStage.COMPUTE,
-                    texture: {
-                        format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                },
+                    sampler: {
+                        //type: "filtering",
+                        //filtering: "linear",
+                        //addressingMode: "clamp-to-edge",
+                        //compare: "never",
+                    },
+                }
             ],
         });
 
@@ -553,8 +558,10 @@ class RenderingManager {
     }
 
     #makeTextureAtlas() {
-        let limit2D = this.device.limits.maxTextureDimension2D
+        //let limit2D = Math.floor(this.device.limits.maxTextureDimension2D / 2)
         //let limit3D = this.device.limits.maxTextureArrayLayers
+
+        let limit2D = 4096
 
         this.textureAtlas = this.device.createTexture({
             dimension: "2d",
@@ -562,7 +569,7 @@ class RenderingManager {
             label: "Browzium Engine Texture Atlas",
             mipLevelCount: 1, // will increase later
             sampleCount: 1, // idk what this is
-            size: [limit2D, limit2D, this.texturesContained.length],
+            size: {width: limit2D, height: limit2D, depthOrArrayLayers: Math.max(this.texturesContained.length, 2)},
             usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
         })
 
@@ -585,18 +592,35 @@ class RenderingManager {
             for (let textureIndex = 0; textureIndex < atlasDepth.length; textureIndex++) {
                 let texture = atlasDepth[textureIndex]
 
-                let start = [0, 0];
+                let start = [0, 0, 0];
 
-                this.device.queue.writeTexture({
+                console.log({
                     mipLevel: 0,
                     origin: start,
                     texture: this.textureAtlas
                 }, texture.bitmap, {
-                    bytesPerRow: (4 * 2) * (texture.x * texture.y),
-                    rowsPerImage: texture.x,
-                }, {
-                    size: [texture.x, texture.y]
-                })
+                    bytesPerRow: (4 * 1) * texture.width
+                }, [
+                    texture.width, 
+                    texture.height,
+                    1
+                ], "big blana")
+
+                this.device.queue.writeTexture(
+                {
+                    mipLevel: 0,
+                    origin: start,
+                    texture: this.textureAtlas
+                }, 
+                texture.bitmap,
+                {
+                    bytesPerRow: (4 * 1) * texture.width
+                }, 
+                [
+                    texture.width, 
+                    texture.height,
+                    1
+                ])
             }
         }
     }
@@ -752,19 +776,31 @@ class RenderingManager {
             let material = this.materials[materialsKeys[matIndex]]
             let locationStart = materialStride * matIndex;
 
-            // Color
+            // Diffuse
 
             materialData[locationStart + 0] = material.diffuse.x;
             materialData[locationStart + 1] = material.diffuse.y;
             materialData[locationStart + 2] = material.diffuse.z;
+            materialData[locationStart + 3] = -1; // texture layer
+            // will have to change later the texture layer
+
+            if(material.diffuseTexture.bitmap.length > 0){
+                materialData[locationStart + 3] = 0;
+            }
+
+            // Specular
+
+            materialData[locationStart + 4] = material.specular.x;
+            materialData[locationStart + 5] = material.specular.y;
+            materialData[locationStart + 6] = material.specular.z;
 
             // Other stuff
 
-            materialData[locationStart + 3] = material.transparency;
-            materialData[locationStart + 4] = material.index_of_refraction;
-            materialData[locationStart + 5] = material.reflectance;
-            materialData[locationStart + 6] = material.emittance;
-            materialData[locationStart + 7] = material.roughtness;
+            materialData[locationStart + 7] = material.transparency;
+            materialData[locationStart + 8] = material.index_of_refraction;
+            materialData[locationStart + 9] = material.reflectance;
+            materialData[locationStart + 10] = material.emittance;
+            materialData[locationStart + 11] = material.roughtness;
         }
 
         console.log("Material data: ", this.materials, materialData)

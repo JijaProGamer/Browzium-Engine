@@ -35,6 +35,9 @@ struct Triangle {
 
 struct Material {
     color: vec3<f32>,
+    texture_layer: f32,
+    
+    specular_color: vec3<f32>,
     transparency: f32,
     
     index_of_refraction: f32,
@@ -102,8 +105,8 @@ struct OutputTextureData {
 @group(1) @binding(1) var<storage, read> inputLightMap: InputLightData;
 @group(1) @binding(2) var<storage, read> inputMaterials: array<Material>;
 @group(1) @binding(3) var<storage, read> inputTreeParts: array<TreePart>;
-@group(1) @binding(4) var textureAtlasSampler: sampler;
-@group(1) @binding(5) var textureAtlas: texture_2d_array<f32>;
+@group(1) @binding(4) var textureAtlas: texture_2d_array<f32>;
+@group(1) @binding(5) var textureAtlasSampler: sampler;
 
 @group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(1) var image_normal_texture: texture_storage_2d<rgba16float, write>;
@@ -240,7 +243,8 @@ struct HitResult {
     object_id: f32,
 
     normal: vec3<f32>,
-    position: vec3<f32>
+    position: vec3<f32>,
+    uv: vec2<f32>
 }
 
 struct OctreeHitResult {
@@ -291,6 +295,10 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
     result.depth = t;
     result.normal = normalize((1.0 - u - v) * tri.na + u * tri.nb + v * tri.nc);
     result.position = ray_origin + ray_direction * t;
+
+    let w = 1.0 - u - v;
+    //result.texture = w * tri.textureA + u * tri.textureB + v * tri.textureC;
+    result.uv = w * vec2<f32>(0, 0) + u * vec2<f32>(0, 1) + v * vec2<f32>(1, 0);
 
     /*if(!is_triangle_facing_camera(tri, ray_direction)){
         result.normal = -result.normal;
@@ -637,6 +645,24 @@ fn RandomPointOnTriangle(
     return output;
 }*/
 
+fn getColor(
+    material: Material,
+    intersection: HitResult,
+) -> vec4<f32> {
+    if(!intersection.hit){
+        return vec4<f32>(1);
+    }
+
+    var textureColor = textureSampleLevel(textureAtlas, textureAtlasSampler, intersection.uv, i32(material.texture_layer), 0);
+    let triangleColor = vec4<f32>(material.color, 1);
+
+    if(material.texture_layer == -1.0){
+        textureColor = vec4<f32>(1);
+    }
+
+    return triangleColor * textureColor;
+}
+
 fn CalculateDirect(
     rayPosition: vec3<f32>,
     rawPixelHash: f32,
@@ -679,7 +705,7 @@ fn CalculateDirect(
         let material = inputMaterials[i32(tri.material_index)];
 
         let cos_theta = dot(-shadowRayDirection, shadowIntersection.normal);
-        let brdf = material.color / 3.141592;
+        let brdf = getColor(material, shadowIntersection).rgb / 3.141592;
         let color = brdf * cos_theta /  (1 / (2 * 3.141592));
         output.color = color;
 
@@ -794,7 +820,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             output.depth = intersection.depth;
             output.intersection = intersection.position;
             output.object_id = intersection.object_id;
-            output.albedo = material.color;
+            output.albedo = getColor(material, intersection).rgb;
             gatherDenoisingData = false;
 
             if(wasReflection){
@@ -815,11 +841,11 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         }*/
 
         let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
-        var reflected = (max(1 - material.emittance, 0) * material.color);
+        var reflected = (max(1 - material.emittance, 0) * getColor(material, intersection).rgb);
         pixelHash = BRDFDirectionValue.outputHash;
 
         //var directIncoming = CalculateDirect(intersection.position, pixelHash);
-        var indirectIncoming = material.color * material.emittance;
+        var indirectIncoming = getColor(material, intersection).rgb * material.emittance;
         var weightIncoming = 1.0; 
         if(depth > 0) {weightIncoming = 0.5;}
 

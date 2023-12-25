@@ -411,11 +411,18 @@
                     canvas.height = image.height;
                     context.drawImage(image, 0, 0, image.width, image.height);
 
-                    const rawPixels = Array.from(context.getImageData(0, 0, image.width, image.height).data);
+                    /*const rawPixels = Array.from(context.getImageData(0, 0, image.width, image.height).data);
 
                     resolve({
                         resolution: [image.width, image.height],
                         bitmap: rawPixels.map((v) => Math.min(Math.max(v / 255.0, 0), 1)),
+                    })*/
+                    
+                    const rawPixels = context.getImageData(0, 0, image.width, image.height).data;
+
+                    resolve({
+                        resolution: [image.width, image.height],
+                        bitmap: rawPixels,
                     })
                 };
             } catch (error) {

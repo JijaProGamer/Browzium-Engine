@@ -35,6 +35,9 @@ struct Triangle {
 
 struct Material {
     color: vec3<f32>,
+    texture_layer: f32,
+    
+    specular_color: vec3<f32>,
     transparency: f32,
     
     index_of_refraction: f32,
@@ -102,8 +105,8 @@ struct OutputTextureData {
 @group(1) @binding(1) var<storage, read> inputLightMap: InputLightData;
 @group(1) @binding(2) var<storage, read> inputMaterials: array<Material>;
 @group(1) @binding(3) var<storage, read> inputTreeParts: array<TreePart>;
-@group(1) @binding(4) var textureAtlasSampler: sampler;
-@group(1) @binding(5) var textureAtlas: texture_2d_array<f32>;
+@group(1) @binding(4) var textureAtlas: texture_2d_array<f32>;
+@group(1) @binding(5) var textureAtlasSampler: sampler;
 
 @group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(1) var image_normal_texture: texture_storage_2d<rgba16float, write>;

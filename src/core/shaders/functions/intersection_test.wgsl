@@ -6,7 +6,8 @@ struct HitResult {
     object_id: f32,
 
     normal: vec3<f32>,
-    position: vec3<f32>
+    position: vec3<f32>,
+    uv: vec2<f32>
 }
 
 struct OctreeHitResult {
@@ -57,6 +58,10 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
     result.depth = t;
     result.normal = normalize((1.0 - u - v) * tri.na + u * tri.nb + v * tri.nc);
     result.position = ray_origin + ray_direction * t;
+
+    let w = 1.0 - u - v;
+    //result.texture = w * tri.textureA + u * tri.textureB + v * tri.textureC;
+    result.uv = w * vec2<f32>(0, 0) + u * vec2<f32>(0, 1) + v * vec2<f32>(1, 0);
 
     /*if(!is_triangle_facing_camera(tri, ray_direction)){
         result.normal = -result.normal;

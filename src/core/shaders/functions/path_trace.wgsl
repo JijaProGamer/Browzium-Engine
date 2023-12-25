@@ -88,6 +88,24 @@ fn RandomPointOnTriangle(
     return output;
 }*/
 
+fn getColor(
+    material: Material,
+    intersection: HitResult,
+) -> vec4<f32> {
+    if(!intersection.hit){
+        return vec4<f32>(1);
+    }
+
+    var textureColor = textureSampleLevel(textureAtlas, textureAtlasSampler, intersection.uv, i32(material.texture_layer), 0);
+    let triangleColor = vec4<f32>(material.color, 1);
+
+    if(material.texture_layer == -1.0){
+        textureColor = vec4<f32>(1);
+    }
+
+    return triangleColor * textureColor;
+}
+
 fn CalculateDirect(
     rayPosition: vec3<f32>,
     rawPixelHash: f32,
@@ -130,7 +148,7 @@ fn CalculateDirect(
         let material = inputMaterials[i32(tri.material_index)];
 
         let cos_theta = dot(-shadowRayDirection, shadowIntersection.normal);
-        let brdf = material.color / 3.141592;
+        let brdf = getColor(material, shadowIntersection).rgb / 3.141592;
         let color = brdf * cos_theta /  (1 / (2 * 3.141592));
         output.color = color;
 
@@ -245,7 +263,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             output.depth = intersection.depth;
             output.intersection = intersection.position;
             output.object_id = intersection.object_id;
-            output.albedo = material.color;
+            output.albedo = getColor(material, intersection).rgb;
             gatherDenoisingData = false;
 
             if(wasReflection){
@@ -266,11 +284,11 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         }*/
 
         let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
-        var reflected = (max(1 - material.emittance, 0) * material.color);
+        var reflected = (max(1 - material.emittance, 0) * getColor(material, intersection).rgb);
         pixelHash = BRDFDirectionValue.outputHash;
 
         //var directIncoming = CalculateDirect(intersection.position, pixelHash);
-        var indirectIncoming = material.color * material.emittance;
+        var indirectIncoming = getColor(material, intersection).rgb * material.emittance;
         var weightIncoming = 1.0; 
         if(depth > 0) {weightIncoming = 0.5;}
 
