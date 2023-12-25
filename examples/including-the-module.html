@@ -418,11 +418,12 @@
                         bitmap: rawPixels.map((v) => Math.min(Math.max(v / 255.0, 0), 1)),
                     })*/
                     
-                    const rawPixels = context.getImageData(0, 0, image.width, image.height).data;
+                    //const rawPixels = context.getImageData(0, 0, image.width, image.height).data;
 
                     resolve({
                         resolution: [image.width, image.height],
-                        bitmap: rawPixels,
+                        //bitmap: rawPixels,
+                        bitmap: canvas,
                     })
                 };
             } catch (error) {

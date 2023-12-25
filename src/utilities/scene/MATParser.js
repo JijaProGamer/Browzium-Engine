@@ -35,9 +35,9 @@ function parseMAT(mat, textures) {
                     throw new Error(`The material file includes the texture "${name}", but the file isnt provided in the "textures" table, or the texture has a incorrect format.`)
                 }
 
-                if(texture.bitmap.length !== (resolution[0] * resolution[1] * 4)){
+                /*if(texture.bitmap.length !== (resolution[0] * resolution[1] * 4)){
                     throw new Error(`The material file includes the texture "${name}", but the texture's bitmap doesnt respect it's resolution.`)
-                }
+                }*/
                 
                 result[lastMaterial].diffuseTexture = textures[name];
 

@@ -569,8 +569,8 @@ class RenderingManager {
             label: "Browzium Engine Texture Atlas",
             mipLevelCount: 1, // will increase later
             sampleCount: 1, // idk what this is
-            size: {width: limit2D, height: limit2D, depthOrArrayLayers: Math.max(this.texturesContained.length, 2)},
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+            size: { width: limit2D, height: limit2D, depthOrArrayLayers: Math.max(this.texturesContained.length, 2) },
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
         })
 
         this.textureAtlasSampler = this.device.createSampler({
@@ -594,33 +594,48 @@ class RenderingManager {
 
                 let start = [0, 0, 0];
 
-                console.log({
-                    mipLevel: 0,
-                    origin: start,
-                    texture: this.textureAtlas
-                }, texture.bitmap, {
-                    bytesPerRow: (4 * 1) * texture.width
-                }, [
-                    texture.width, 
-                    texture.height,
-                    1
-                ], "big blana")
-
-                this.device.queue.writeTexture(
-                {
-                    mipLevel: 0,
-                    origin: start,
-                    texture: this.textureAtlas
-                }, 
-                texture.bitmap,
-                {
-                    bytesPerRow: (4 * 1) * texture.width
-                }, 
-                [
-                    texture.width, 
-                    texture.height,
-                    1
-                ])
+                if (
+                    texture.bitmap instanceof ImageBitmap ||
+                    texture.bitmap instanceof HTMLVideoElement ||
+                    texture.bitmap instanceof VideoFrame ||
+                    texture.bitmap instanceof HTMLCanvasElement ||
+                    texture.bitmap instanceof OffscreenCanvas
+                ) {
+                    this.device.queue.copyExternalImageToTexture(
+                        {
+                            //origin: [0, 0],
+                            source: texture.bitmap
+                        },
+                        {
+                            //mipLevel: 0,
+                            //origin: start,
+                            texture: this.textureAtlas
+                        },
+                        [
+                            texture.width,
+                            texture.height,
+                            atlasDepthIndex + 1
+                        ]
+                    )
+                } else {
+                    this.device.queue.writeTexture(
+                        {
+                            mipLevel: 0,
+                            origin: start,
+                            texture: this.textureAtlas
+                        },
+                        texture.bitmap.buffer | texture.bitmap,
+                        {
+                            bytesPerRow: 4 * 2 * texture.width,
+                            //rowsPerImage: texture.height
+                        },
+                        [
+                            texture.width,
+                            texture.height,
+                            atlasDepthIndex + 1
+                        ]
+                    )
+                }
             }
         }
     }
@@ -784,7 +799,7 @@ class RenderingManager {
             materialData[locationStart + 3] = -1; // texture layer
             // will have to change later the texture layer
 
-            if(material.diffuseTexture.bitmap.length > 0){
+            if (material.diffuseTexture.resolution[0] > 0) {
                 materialData[locationStart + 3] = 0;
             }
 
@@ -1126,7 +1141,9 @@ class RenderingManager {
 export default RenderingManager
 
 function deepCopy(obj) {
-    if (obj === null || typeof obj !== 'object') {
+    return obj;
+
+    /*if (obj === null || typeof obj !== 'object') {
         return obj;
     }
 
@@ -1138,6 +1155,10 @@ function deepCopy(obj) {
         return obj.map(deepCopy);
     }
 
+    if (obj instanceof Uint8ClampedArray) {
+        return new Uint8ClampedArray(obj);
+    }
+
     if (obj instanceof Object) {
         const copiedObject = {};
         for (const key in obj) {
@@ -1146,5 +1167,7 @@ function deepCopy(obj) {
             }
         }
         return copiedObject;
-    }
+    }*/
+
+    //return structuredClone(obj)
 }
