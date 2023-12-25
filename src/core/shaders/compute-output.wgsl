@@ -298,7 +298,7 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 
     let w = 1.0 - u - v;
     //result.texture = w * tri.textureA + u * tri.textureB + v * tri.textureC;
-    result.uv = w * vec2<f32>(0, 0) + u * vec2<f32>(0, 1) + v * vec2<f32>(1, 0);
+    result.uv = w * vec2<f32>(0, 0) + u * vec2<f32>(1, 0) + v * vec2<f32>(0, 1);
 
     /*if(!is_triangle_facing_camera(tri, ray_direction)){
         result.normal = -result.normal;
