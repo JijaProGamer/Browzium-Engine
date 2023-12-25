@@ -58,6 +58,10 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
     result.normal = normalize((1.0 - u - v) * tri.na + u * tri.nb + v * tri.nc);
     result.position = ray_origin + ray_direction * t;
 
+    /*if(!is_triangle_facing_camera(tri, ray_direction)){
+        result.normal = -result.normal;
+    }*/
+
     return result;
 }
 
@@ -84,6 +88,31 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
         let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
 
         if (current_result.hit && current_result.depth < depth) {
+            result = current_result;
+            depth = result.depth;
+            result.material = inputMaterials[i32(currentTriangle.material_index)];
+            result.object_id = currentTriangle.object_id;
+        }
+    }
+
+    return result;
+}
+
+fn get_light_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>, object_needed: f32) -> HitResult {
+    let epsilon = 0.01;
+
+    var depth: f32 = 9999999;
+    var result: HitResult;
+
+    for (var i: f32 = 0; i < inputMap.triangle_count; i = i + 1) {
+        let currentTriangle = inputMap.triangles[i32(i)];
+        let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
+
+        let satisfyDepth = current_result.hit && current_result.depth < depth;
+        let satisfyLightCheck = abs(depth - current_result.depth) > epsilon && (result.object_id != object_needed || current_result.object_id == object_needed);
+
+        if(current_result.object_id > 0){
+        //if (satisfyDepth || !satisfyLightCheck) {
             result = current_result;
             depth = result.depth;
             result.material = inputMaterials[i32(currentTriangle.material_index)];

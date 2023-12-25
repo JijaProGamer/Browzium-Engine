@@ -173,7 +173,7 @@ fn computeMain(
 
     if (inputFilteringData.maxStep == 1) {
         let originalAlpha = accumulatedColor.a;
-        //let originalAlpha = 1.0;
+        //accumulatedColor = textureLoad(normalMap, global_invocation_id.xy, 0);
         accumulatedColor *= textureLoad(albedoMap, global_invocation_id.xy, 0);
         accumulatedColor.a = originalAlpha;
     }

@@ -87,6 +87,12 @@ class RenderingManager {
 
     denoisersBuilt = {}
 
+    // Texture Data
+
+    textureAtlas;
+    textureAtlasSampler;
+    texturesContained;
+
     constructor(opts = {}, Camera) {
         if (!navigator.gpu) {
             throw Error("WebGPU not supported.");
@@ -244,6 +250,14 @@ class RenderingManager {
                         buffer: this.computeOctreeTreeData,
                     },
                 },
+                {
+                    binding: 4,
+                    resource: this.textureAtlas.createView(),
+                },
+                {
+                    binding: 5,
+                    resource: this.textureAtlasSampler,
+                }
             ],
         });
 
@@ -352,6 +366,20 @@ class RenderingManager {
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: {
                         type: "read-only-storage",
+                    }
+                },
+                {
+                    binding: 4,
+                    visibility: GPUShaderStage.COMPUTE,
+                    type: "sampler",
+                },
+                {
+                    binding: 5,
+                    visibility: GPUShaderStage.COMPUTE,
+                    texture: {
+                        format: "rgba16float",
+                        viewDimension: "2d",
+                        multisampled: false,
                     }
                 },
             ],
@@ -498,6 +526,81 @@ class RenderingManager {
         })
     }
 
+    #computeAtlasFormat(triangles) { // actually implement this xd
+        let maxSize = this.device.limits.maxTextureDimension2D
+        let maxDepth = this.device.limits.maxTextureArrayLayers
+
+        let textures = [[]]
+
+        for (let materialName of Object.keys(this.materials)) {
+            let material = this.materials[materialName]
+            if (material.diffuseTexture.bitmap.length == 0) { continue; }
+
+            //for(let textures[])
+            textures[0].push({
+                x: 0,
+                y: 0,
+                width: material.diffuseTexture.resolution[0],
+                height: material.diffuseTexture.resolution[1],
+                bitmap: material.diffuseTexture.bitmap,
+                material
+            })
+        }
+
+        console.log(textures);
+
+        this.texturesContained = textures
+    }
+
+    #makeTextureAtlas() {
+        let limit2D = this.device.limits.maxTextureDimension2D
+        //let limit3D = this.device.limits.maxTextureArrayLayers
+
+        this.textureAtlas = this.device.createTexture({
+            dimension: "2d",
+            format: "rgba16float", // might decrease later
+            label: "Browzium Engine Texture Atlas",
+            mipLevelCount: 1, // will increase later
+            sampleCount: 1, // idk what this is
+            size: [limit2D, limit2D, this.texturesContained.length],
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+        })
+
+        this.textureAtlasSampler = this.device.createSampler({
+            addressModeU: "clamp-to-edge",
+            addressModeV: "clamp-to-edge",
+            addressModeW: "clamp-to-edge",
+            label: "Browzium Engine Texture Atlas Sampler",
+
+            magFilter: "linear", // Will be user costumizable
+            minFilter: "linear", // Will be user costumizable
+            mipmapFilter: "nearest", // Will be user costumizable
+        })
+    }
+
+    #applyTextureAtlas() {
+        for (let atlasDepthIndex = 0; atlasDepthIndex < this.texturesContained.length; atlasDepthIndex++) {
+            let atlasDepth = this.texturesContained[atlasDepthIndex];
+
+            for (let textureIndex = 0; textureIndex < atlasDepth.length; textureIndex++) {
+                let texture = atlasDepth[textureIndex]
+
+                let start = [0, 0];
+
+                this.device.queue.writeTexture({
+                    mipLevel: 0,
+                    origin: start,
+                    texture: this.textureAtlas
+                }, texture.bitmap, {
+                    bytesPerRow: (4 * 2) * (texture.x * texture.y),
+                    rowsPerImage: texture.x,
+                }, {
+                    size: [texture.x, texture.y]
+                })
+            }
+        }
+    }
+
     async generateImage() {
 
         // Run the compute shader
@@ -621,11 +724,11 @@ class RenderingManager {
         this.device.queue.writeBuffer(this.renderHistoryData, 0, renderData, 0, renderData.length);
     }
 
-    SetMaterials(materialList, dontUpdateBuffer) {
-        this.materials = materialList;
+    SetMaterials(materialList, updateBuffer) {
+        this.materials = deepCopy(materialList);
 
         let oldSize = (this.computeMaterialData || { size: 0 }).size / 4
-        let newSize = getNext2Power(Object.keys(materialList).length) * materialStride
+        let newSize = getNext2Power(Object.keys(this.materials).length) * materialStride
 
         while (newSize % 4 > 0) {
             newSize++;
@@ -639,14 +742,14 @@ class RenderingManager {
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             });
 
-            if (!dontUpdateBuffer) {
+            if (updateBuffer) {
                 this.#makeBindGroups()
             }
         }
 
-        let materialsKeys = Object.keys(materialList)
+        let materialsKeys = Object.keys(this.materials)
         for (let matIndex = 0; matIndex < materialsKeys.length; matIndex++) {
-            let material = materialList[materialsKeys[matIndex]]
+            let material = this.materials[materialsKeys[matIndex]]
             let locationStart = materialStride * matIndex;
 
             // Color
@@ -664,8 +767,7 @@ class RenderingManager {
             materialData[locationStart + 7] = material.roughtness;
         }
 
-
-        console.log(materialList, materialData)
+        console.log("Material data: ", this.materials, materialData)
 
         this.device.queue.writeBuffer(this.computeMaterialData, 0, materialData, 0, materialData.length);
     }
@@ -703,7 +805,7 @@ class RenderingManager {
         return branches
     }
 
-    #SetOctree(triangleArray, dontUpdateBuffer) {
+    #SetOctree(triangleArray, updateBuffer) {
         let octree = this.CreateOctree(triangleArray)
 
         let oldSize = (this.computeOctreeTreeData || { size: 0 }).size / 4
@@ -717,12 +819,10 @@ class RenderingManager {
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             });
 
-            if (!dontUpdateBuffer) {
+            if (updateBuffer) {
                 this.#makeBindGroups()
             }
         }
-
-        console.log(octree)
 
         for (let branchIndex = 0; branchIndex < octree.length; branchIndex++) {
             let octreeBranch = octree[branchIndex]
@@ -756,8 +856,6 @@ class RenderingManager {
             }
         }
 
-        console.log(octreeData)
-
         this.device.queue.writeBuffer(this.computeOctreeTreeData, 0, octreeData, 0, octreeData.length);
     }
 
@@ -788,12 +886,19 @@ class RenderingManager {
             triangleData[triIndex + 1] = triangleArray.indexOf(lightTriangleArray[triIndex]);
         }
 
-        console.log(triangleData, triangleArray, 433)
         this.device.queue.writeBuffer(this.computeLightData, 0, triangleData, 0, triangleData.length);
     }
 
-    SetTriangles(triangleArray, updateOctree, dontUpdateBuffer) {
+    SetTriangles(triangleArray, updateOctree, updateTextures, updateBuffer) {
+        triangleArray = triangleArray.map(deepCopy)
         this.#SetLights(triangleArray);
+
+        if (updateTextures) {
+            this.#computeAtlasFormat(triangleArray)
+            this.#makeTextureAtlas()
+            this.#applyTextureAtlas()
+        }
+
 
         let startIndex = 4;
 
@@ -814,7 +919,7 @@ class RenderingManager {
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             });
 
-            if (!dontUpdateBuffer) {
+            if (updateBuffer) {
                 this.#makeBindGroups()
             }
         }
@@ -874,7 +979,7 @@ class RenderingManager {
         this.device.queue.writeBuffer(this.computeMapData, 0, triangleData, 0, triangleData.length);
 
         if (updateOctree) {
-            this.#SetOctree(triangleArray)
+            this.#SetOctree(triangleArray, true)
         }
     }
 
@@ -958,9 +1063,12 @@ class RenderingManager {
         this.frame = 0;
         this.staticFrames = 0;
 
-        this.#SetOctree([], true);
-        this.SetMaterials([], true);
-        this.SetTriangles([], false, true);
+        this.#computeAtlasFormat([])
+        this.#makeTextureAtlas(1)
+
+        this.#SetOctree([], false);
+        this.SetMaterials([], false);
+        this.SetTriangles([], false, true, false);
         this.#makePipelines();
         this.#makeBindGroups();
 
@@ -980,3 +1088,27 @@ class RenderingManager {
 }
 
 export default RenderingManager
+
+function deepCopy(obj) {
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
+    }
+
+    if (obj instanceof Date) {
+        return new Date(obj.getTime());
+    }
+
+    if (obj instanceof Array) {
+        return obj.map(deepCopy);
+    }
+
+    if (obj instanceof Object) {
+        const copiedObject = {};
+        for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                copiedObject[key] = deepCopy(obj[key]);
+            }
+        }
+        return copiedObject;
+    }
+}

@@ -12,6 +12,11 @@ class Material {
     reflectance = 0
     roughtness = 0
     emittance = 0
+
+    diffuseTexture = {
+        resolution: [0, 0],
+        bitmap: [],
+    }
 }
 
 export default Material;

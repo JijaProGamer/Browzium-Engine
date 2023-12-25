@@ -50,6 +50,7 @@ fn calculatePixelColor(
     var pixelModifier = random2Vec2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
+    //var realPixel = pixel;
     var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
     //var realPixel = pixel + pixelModifier.output;
 

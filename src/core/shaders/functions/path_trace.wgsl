@@ -24,6 +24,7 @@ struct DirectCalculationOutput {
     color: vec3<f32>,
     direction: vec3<f32>,
     seed: f32,
+    wasHit: bool,
     hit: HitResult,
 }
 
@@ -93,14 +94,36 @@ fn CalculateDirect(
 ) -> DirectCalculationOutput {
     var output: DirectCalculationOutput;
 
-    var pixelHash = random(rawPixelHash);
-    let triIndex = u32(floor(pixelHash * inputLightMap.triangle_count));
-    let tri = inputMap.triangles[u32(inputLightMap.triangles[triIndex])];
+    var pixelHash = rawPixelHash;
+    //let triIndex = u32(floor(pixelHash * inputLightMap.triangle_count));
+    
+    //let tri = inputMap.triangles[u32(inputLightMap.triangles[triIndex])];
+
+    /*let tri = inputMap.triangles[u32(inputLightMap.triangles[1])];
+    let lightSample = vec4<f32>((tri.a + tri.b + tri.c) / 3, pixelHash);*/
+
+    var tri: Triangle;
+    var depth: f32 = 9999999999;
+
+    for(var i: u32 = 0; i < u32(inputLightMap.triangle_count); i++){
+        let newTri = inputMap.triangles[u32(inputLightMap.triangles[i])];
+        let depthPosition = rayPosition - (newTri.a + newTri.b + newTri.c) / 3;
+        let newDepth = dot(depthPosition, depthPosition);
+        pixelHash = random(pixelHash);
+
+        if(depth == 9999999999 || (newDepth < depth && pixelHash < 0.5)){
+            depth = newDepth;
+            tri = newTri;
+        }
+    }
 
     let lightSample = RandomPointOnTriangle(tri, pixelHash);
+    //let lightSample = vec4<f32>((tri.a + tri.b + tri.c) / 3, pixelHash);
+
     let lightPosition = lightSample.xyz;
 
     let shadowRayDirection = normalize(lightPosition - rayPosition);
+    //let shadowIntersection = get_light_ray_intersection(rayPosition, shadowRayDirection, tri.object_id);
     let shadowIntersection = get_ray_intersection(rayPosition, shadowRayDirection);
 
     if (shadowIntersection.hit && shadowIntersection.object_id == tri.object_id) {
@@ -112,6 +135,7 @@ fn CalculateDirect(
         output.color = color;
 
         output.hit = shadowIntersection;
+        output.wasHit = true;
     }
 
     output.seed = lightSample.w;
@@ -138,8 +162,8 @@ fn TransparencyDirection(
     rawHash: f32,
 ) -> BRDFDirectionOutput {
     var output: BRDFDirectionOutput;
-    var pixelHash = rawHash;
-    let doTransparency = random(pixelHash) <= intersection.material.transparency;
+    var pixelHash = random(rawHash);
+    let doTransparency = pixelHash < intersection.material.transparency;
     
     let eta = 1.0 / intersection.material.index_of_refraction;
     let transmittedDir = refract(oldDirection, intersection.normal, eta);
@@ -158,11 +182,11 @@ fn BRDFDirection(
 ) -> BRDFDirectionOutput { 
     let transparencyOutput = TransparencyDirection(intersection, oldDirection, rawHash);
     var output: BRDFDirectionOutput;
-    var pixelHash = rawHash;
+    var pixelHash = random(transparencyOutput.outputHash);
 
     if(transparencyOutput.isTransparent){   return transparencyOutput;  }
 
-    let doSpecular = random(pixelHash) <= intersection.material.reflectance;
+    let doSpecular = random(pixelHash) < intersection.material.reflectance;
     
     var diffuseDirectionValue = randomPointInCircle(pixelHash, intersection.position);
     pixelHash = diffuseDirectionValue.seed;
@@ -179,11 +203,12 @@ fn BRDFDirection(
     return output;
 }
 
-const maxDepth: i32 = 5;
+const maxDepth: i32 = 4;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
+    var oldMaterial: Material;
     var intersection: HitResult;
     var realDirection = direction;
     var realStart = start;
@@ -195,11 +220,12 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var depth: i32 = 0;
 
     var gatherDenoisingData = true;
+    var wasReflection = false;
 
     var emittance: vec3<f32>;
 
     for (; depth <= maxDepth; depth = depth + 1) {
-        if (depth >= maxDepth || (!intersection.hit && depth > 0)) {
+        if (!intersection.hit && depth > 0) {
             break;
         }
 
@@ -221,6 +247,10 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             output.object_id = intersection.object_id;
             output.albedo = material.color;
             gatherDenoisingData = false;
+
+            if(wasReflection){
+                output.albedo *= oldMaterial.color;
+            }
         }
 
         if (!intersection.hit) {
@@ -239,22 +269,24 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var reflected = (max(1 - material.emittance, 0) * material.color);
         pixelHash = BRDFDirectionValue.outputHash;
 
-        var directIncoming = CalculateDirect(intersection.position, pixelHash);
+        //var directIncoming = CalculateDirect(intersection.position, pixelHash);
         var indirectIncoming = material.color * material.emittance;
         var weightIncoming = 1.0; 
         if(depth > 0) {weightIncoming = 0.5;}
 
-        //emittance = indirectIncoming;
-        //emittance = (indirectIncoming + directIncoming.color) / 2;
-        emittance = weightIncoming * (indirectIncoming + directIncoming.color);
-        pixelHash = directIncoming.seed;
+        emittance = indirectIncoming;
+        //emittance = weightIncoming * (indirectIncoming + directIncoming.color);
+        //pixelHash = directIncoming.seed;
 
         gatherDenoisingData = depth == 0 && (BRDFDirectionValue.isSpecular || BRDFDirectionValue.isTransparent);
+        wasReflection = gatherDenoisingData;
+
         output.noisy_color += vec4<f32>(rayColour * emittance, 0);
         rayColour *= emittance + reflected;
 
         realStart = intersection.position;
         realDirection = BRDFDirectionValue.direction;
+        oldMaterial = material;
     }
 
     output.noisy_color.w = length(output.noisy_color.xyz / emittance);
@@ -282,13 +314,15 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 
     var directIncoming = CalculateDirect(intersection.position, rawPixelHash);
 
-    if(directIncoming.color.x + directIncoming.color.y + directIncoming.color.z > 0){
+    if(directIncoming.wasHit){
         output.albedo = material.color * directIncoming.color;
     }
 
     if(material.emittance > 0){
         output.albedo = material.color * material.emittance;
     }
+
+    output.seed = directIncoming.seed;
 
     return output;
 }*/

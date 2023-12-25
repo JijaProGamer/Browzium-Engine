@@ -102,6 +102,8 @@ struct OutputTextureData {
 @group(1) @binding(1) var<storage, read> inputLightMap: InputLightData;
 @group(1) @binding(2) var<storage, read> inputMaterials: array<Material>;
 @group(1) @binding(3) var<storage, read> inputTreeParts: array<TreePart>;
+@group(1) @binding(4) var textureAtlasSampler: sampler;
+@group(1) @binding(5) var textureAtlas: texture_2d_array<f32>;
 
 @group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(1) var image_normal_texture: texture_storage_2d<rgba16float, write>;
@@ -290,6 +292,10 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
     result.normal = normalize((1.0 - u - v) * tri.na + u * tri.nb + v * tri.nc);
     result.position = ray_origin + ray_direction * t;
 
+    /*if(!is_triangle_facing_camera(tri, ray_direction)){
+        result.normal = -result.normal;
+    }*/
+
     return result;
 }
 
@@ -316,6 +322,31 @@ fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitR
         let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
 
         if (current_result.hit && current_result.depth < depth) {
+            result = current_result;
+            depth = result.depth;
+            result.material = inputMaterials[i32(currentTriangle.material_index)];
+            result.object_id = currentTriangle.object_id;
+        }
+    }
+
+    return result;
+}
+
+fn get_light_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>, object_needed: f32) -> HitResult {
+    let epsilon = 0.01;
+
+    var depth: f32 = 9999999;
+    var result: HitResult;
+
+    for (var i: f32 = 0; i < inputMap.triangle_count; i = i + 1) {
+        let currentTriangle = inputMap.triangles[i32(i)];
+        let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
+
+        let satisfyDepth = current_result.hit && current_result.depth < depth;
+        let satisfyLightCheck = abs(depth - current_result.depth) > epsilon && (result.object_id != object_needed || current_result.object_id == object_needed);
+
+        if(current_result.object_id > 0){
+        //if (satisfyDepth || !satisfyLightCheck) {
             result = current_result;
             depth = result.depth;
             result.material = inputMaterials[i32(currentTriangle.material_index)];
@@ -542,6 +573,7 @@ struct DirectCalculationOutput {
     color: vec3<f32>,
     direction: vec3<f32>,
     seed: f32,
+    wasHit: bool,
     hit: HitResult,
 }
 
@@ -611,14 +643,36 @@ fn CalculateDirect(
 ) -> DirectCalculationOutput {
     var output: DirectCalculationOutput;
 
-    var pixelHash = random(rawPixelHash);
-    let triIndex = u32(floor(pixelHash * inputLightMap.triangle_count));
-    let tri = inputMap.triangles[u32(inputLightMap.triangles[triIndex])];
+    var pixelHash = rawPixelHash;
+    //let triIndex = u32(floor(pixelHash * inputLightMap.triangle_count));
+    
+    //let tri = inputMap.triangles[u32(inputLightMap.triangles[triIndex])];
+
+    /*let tri = inputMap.triangles[u32(inputLightMap.triangles[1])];
+    let lightSample = vec4<f32>((tri.a + tri.b + tri.c) / 3, pixelHash);*/
+
+    var tri: Triangle;
+    var depth: f32 = 9999999999;
+
+    for(var i: u32 = 0; i < u32(inputLightMap.triangle_count); i++){
+        let newTri = inputMap.triangles[u32(inputLightMap.triangles[i])];
+        let depthPosition = rayPosition - (newTri.a + newTri.b + newTri.c) / 3;
+        let newDepth = dot(depthPosition, depthPosition);
+        pixelHash = random(pixelHash);
+
+        if(depth == 9999999999 || (newDepth < depth && pixelHash < 0.5)){
+            depth = newDepth;
+            tri = newTri;
+        }
+    }
 
     let lightSample = RandomPointOnTriangle(tri, pixelHash);
+    //let lightSample = vec4<f32>((tri.a + tri.b + tri.c) / 3, pixelHash);
+
     let lightPosition = lightSample.xyz;
 
     let shadowRayDirection = normalize(lightPosition - rayPosition);
+    //let shadowIntersection = get_light_ray_intersection(rayPosition, shadowRayDirection, tri.object_id);
     let shadowIntersection = get_ray_intersection(rayPosition, shadowRayDirection);
 
     if (shadowIntersection.hit && shadowIntersection.object_id == tri.object_id) {
@@ -630,6 +684,7 @@ fn CalculateDirect(
         output.color = color;
 
         output.hit = shadowIntersection;
+        output.wasHit = true;
     }
 
     output.seed = lightSample.w;
@@ -656,8 +711,8 @@ fn TransparencyDirection(
     rawHash: f32,
 ) -> BRDFDirectionOutput {
     var output: BRDFDirectionOutput;
-    var pixelHash = rawHash;
-    let doTransparency = random(pixelHash) <= intersection.material.transparency;
+    var pixelHash = random(rawHash);
+    let doTransparency = pixelHash < intersection.material.transparency;
     
     let eta = 1.0 / intersection.material.index_of_refraction;
     let transmittedDir = refract(oldDirection, intersection.normal, eta);
@@ -676,11 +731,11 @@ fn BRDFDirection(
 ) -> BRDFDirectionOutput { 
     let transparencyOutput = TransparencyDirection(intersection, oldDirection, rawHash);
     var output: BRDFDirectionOutput;
-    var pixelHash = rawHash;
+    var pixelHash = random(transparencyOutput.outputHash);
 
     if(transparencyOutput.isTransparent){   return transparencyOutput;  }
 
-    let doSpecular = random(pixelHash) <= intersection.material.reflectance;
+    let doSpecular = random(pixelHash) < intersection.material.reflectance;
     
     var diffuseDirectionValue = randomPointInCircle(pixelHash, intersection.position);
     pixelHash = diffuseDirectionValue.seed;
@@ -697,11 +752,12 @@ fn BRDFDirection(
     return output;
 }
 
-const maxDepth: i32 = 5;
+const maxDepth: i32 = 4;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
+    var oldMaterial: Material;
     var intersection: HitResult;
     var realDirection = direction;
     var realStart = start;
@@ -713,11 +769,12 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var depth: i32 = 0;
 
     var gatherDenoisingData = true;
+    var wasReflection = false;
 
     var emittance: vec3<f32>;
 
     for (; depth <= maxDepth; depth = depth + 1) {
-        if (depth >= maxDepth || (!intersection.hit && depth > 0)) {
+        if (!intersection.hit && depth > 0) {
             break;
         }
 
@@ -739,6 +796,10 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             output.object_id = intersection.object_id;
             output.albedo = material.color;
             gatherDenoisingData = false;
+
+            if(wasReflection){
+                output.albedo *= oldMaterial.color;
+            }
         }
 
         if (!intersection.hit) {
@@ -757,22 +818,24 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         var reflected = (max(1 - material.emittance, 0) * material.color);
         pixelHash = BRDFDirectionValue.outputHash;
 
-        var directIncoming = CalculateDirect(intersection.position, pixelHash);
+        //var directIncoming = CalculateDirect(intersection.position, pixelHash);
         var indirectIncoming = material.color * material.emittance;
         var weightIncoming = 1.0; 
         if(depth > 0) {weightIncoming = 0.5;}
 
-        //emittance = indirectIncoming;
-        //emittance = (indirectIncoming + directIncoming.color) / 2;
-        emittance = weightIncoming * (indirectIncoming + directIncoming.color);
-        pixelHash = directIncoming.seed;
+        emittance = indirectIncoming;
+        //emittance = weightIncoming * (indirectIncoming + directIncoming.color);
+        //pixelHash = directIncoming.seed;
 
         gatherDenoisingData = depth == 0 && (BRDFDirectionValue.isSpecular || BRDFDirectionValue.isTransparent);
+        wasReflection = gatherDenoisingData;
+
         output.noisy_color += vec4<f32>(rayColour * emittance, 0);
         rayColour *= emittance + reflected;
 
         realStart = intersection.position;
         realDirection = BRDFDirectionValue.direction;
+        oldMaterial = material;
     }
 
     output.noisy_color.w = length(output.noisy_color.xyz / emittance);
@@ -800,13 +863,15 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
 
     var directIncoming = CalculateDirect(intersection.position, rawPixelHash);
 
-    if(directIncoming.color.x + directIncoming.color.y + directIncoming.color.z > 0){
+    if(directIncoming.wasHit){
         output.albedo = material.color * directIncoming.color;
     }
 
     if(material.emittance > 0){
         output.albedo = material.color * material.emittance;
     }
+
+    output.seed = directIncoming.seed;
 
     return output;
 }*/
@@ -916,6 +981,7 @@ fn calculatePixelColor(
     var pixelModifier = random2Vec2(pixelHash, pixel);
     pixelHash = pixelModifier.seed;
 
+    //var realPixel = pixel;
     var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
     //var realPixel = pixel + pixelModifier.output;
 
@@ -967,7 +1033,7 @@ fn computeMain(
     for(var rayNum = 0; rayNum < i32(maxRays); rayNum++){
         let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy), seed);
         seed = pixelData.seed;
-        if(isNan(pixelData.pixel.noisy_color.x) || isNan(pixelData.pixel.noisy_color.y) || isNan(pixelData.pixel.noisy_color.z)){ return; }
+        if(isNan(pixelData.pixel.noisy_color.x) || isNan(pixelData.pixel.noisy_color.y) || isNan(pixelData.pixel.noisy_color.z) || isNan(pixelData.pixel.noisy_color.w)){ continue; }
 
         avarageColor += pixelData.pixel.noisy_color;
         avarageAlbedo += pixelData.pixel.albedo;
@@ -981,6 +1047,9 @@ fn computeMain(
 
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
+
+    if(raysDone == 0) {return; }
+    if(isNan(avarageColor.x) || isNan(avarageColor.y) || isNan(avarageColor.z) || isNan(avarageColor.w)){ return; }
 
     textureStore(image_color_texture, global_invocation_id.xy, avarageColor / raysDone);
     textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / raysDone, 0));

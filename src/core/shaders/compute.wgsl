@@ -102,6 +102,8 @@ struct OutputTextureData {
 @group(1) @binding(1) var<storage, read> inputLightMap: InputLightData;
 @group(1) @binding(2) var<storage, read> inputMaterials: array<Material>;
 @group(1) @binding(3) var<storage, read> inputTreeParts: array<TreePart>;
+@group(1) @binding(4) var textureAtlasSampler: sampler;
+@group(1) @binding(5) var textureAtlas: texture_2d_array<f32>;
 
 @group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(1) var image_normal_texture: texture_storage_2d<rgba16float, write>;
@@ -144,7 +146,7 @@ fn computeMain(
     for(var rayNum = 0; rayNum < i32(maxRays); rayNum++){
         let pixelData = calculatePixelColor(vec2<f32>(global_invocation_id.xy), seed);
         seed = pixelData.seed;
-        if(isNan(pixelData.pixel.noisy_color.x) || isNan(pixelData.pixel.noisy_color.y) || isNan(pixelData.pixel.noisy_color.z)){ return; }
+        if(isNan(pixelData.pixel.noisy_color.x) || isNan(pixelData.pixel.noisy_color.y) || isNan(pixelData.pixel.noisy_color.z) || isNan(pixelData.pixel.noisy_color.w)){ continue; }
 
         avarageColor += pixelData.pixel.noisy_color;
         avarageAlbedo += pixelData.pixel.albedo;
@@ -158,6 +160,9 @@ fn computeMain(
 
     //imageBuffer[index] = pixelData.pixel;
     //temporalBuffer[index] = pixelData.temporalData;
+
+    if(raysDone == 0) {return; }
+    if(isNan(avarageColor.x) || isNan(avarageColor.y) || isNan(avarageColor.z) || isNan(avarageColor.w)){ return; }
 
     textureStore(image_color_texture, global_invocation_id.xy, avarageColor / raysDone);
     textureStore(image_albedo_texture, global_invocation_id.xy, vec4<f32>(avarageAlbedo / raysDone, 0));

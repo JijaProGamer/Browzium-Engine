@@ -6,7 +6,7 @@ import { Material } from "../../core/classes/Material.js";
 
 import { parseMAT } from "./MATParser.js";
 
-function parseOBJ(obj, materialsCode=[], options={}) {
+function parseOBJ(obj, materialsCode={}, textures={}, options={}) {
     options = {...{
         objectIdentityMode: "perFace"
     }, ...options}
@@ -19,7 +19,7 @@ function parseOBJ(obj, materialsCode=[], options={}) {
     const lines = obj.split('\n');
 
     let normals = []
-    let textures = []
+    let textureUVs = []
     let vertices = []
     let lastMaterial = "default"
     let lastObject = ""
@@ -53,13 +53,13 @@ function parseOBJ(obj, materialsCode=[], options={}) {
             case 'mtllib':
                 var name = parts[0].split("/").pop().split("\\").pop().split(".mtl")[0]
                 if(!materialsCode[name]){
-                    throw new Error(`The OBJ file includes the material "${name}", but the file isnt provided in the "materialsCode" tab.`)
+                    throw new Error(`The OBJ file includes the material "${name}", but the file isnt provided in the "materialsCode" table.`)
                 }
                 
-                result.materials = {...result.materials, ...parseMAT(materialsCode[name])}
+                result.materials = {...result.materials, ...parseMAT(materialsCode[name], textures)}
                 break;
             case 'usemtl':
-                var name = parts[0]
+                var name = parts.pop()
                 if(!result.materials[name]){
                     throw new Error(`The OBJ file wants to use material "${name}" that hasn't been declared`)
                 }
@@ -87,7 +87,7 @@ function parseOBJ(obj, materialsCode=[], options={}) {
                     if(normalIndice > 0) normalIndice -= 1;
 
                     faceVertices.push(vertices.at(vertexIndice));
-                    faceTextures.push(textures.at(textureIndice));
+                    faceTextures.push(textureUVs.at(textureIndice));
                     faceNormals.push(normals.at(normalIndice));
                 }
 

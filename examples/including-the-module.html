@@ -25,7 +25,7 @@
         width: 80vw;
         height: 80vh;
         display: block;
-        touch-action: manipulation; 
+        touch-action: manipulation;
     }
 
     h1,
@@ -111,7 +111,7 @@
     GameEngine.Renderer.gammaCorrect = true;
     GameEngine.Renderer.denoiser = "none";
 
-    GameEngine.Renderer.denoisersBuilt.atrous.levels = 5;
+    GameEngine.Renderer.denoisersBuilt.atrous.levels = 2;
 
     GameEngine.Renderer.bounces = 5;
     GameEngine.Renderer.rpp = 3;
@@ -379,19 +379,64 @@
 
     // Scene stuff
 
-    let map = "cornell_low_light"
-    let cornellBox = OBJParser(await (await fetch(`/maps/${map}/map.obj`)).text(), {
-        "map": await (await fetch(`/maps/${map}/map.mtl`)).text()
-    }, {
-        objectIdentityMode: "perObject"
-    })
+    ; (async () => {
+        let map = "cornell_low_light"
+        let cornellBox = OBJParser(await (await fetch(`/maps/${map}/map.obj`)).text(), {
+            "map": await (await fetch(`/maps/${map}/map.mtl`)).text()
+        }, {
+            "example_texture.bmp": await readImageFile("/maps/example_texture.bmp")
+        }, {
+            objectIdentityMode: "perObject"
+        })
 
-    //cornellBox.triangles.splice(cornellBox.objects.front_wall[0], 1)
-    //cornellBox.triangles.splice(cornellBox.objects.front_wall[1] - 1, 1)
+        console.log(cornellBox, 69)
+        //cornellBox.triangles.splice(cornellBox.objects.front_wall[0], 1)
+        //cornellBox.triangles.splice(cornellBox.objects.front_wall[1] - 1, 1)
 
-    console.log(cornellBox)
-    await GameEngine.Renderer.SetMaterials(cornellBox.materials)
-    await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true)
+        await GameEngine.Renderer.SetMaterials(cornellBox.materials, true)
+        await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true, true, true)
+    })();
+
+    function readImageFile(url) {
+        return new Promise((resolve, reject) => {
+            try {
+                const image = new Image();
+                image.src = url;
+
+                image.onload = function () {
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    context.drawImage(image, 0, 0, image.width, image.height);
+
+                    const rawPixels = Array.from(context.getImageData(0, 0, image.width, image.height).data);
+
+                    resolve({
+                        resolution: [image.width, image.height],
+                        bitmap: rawPixels.map((v) => Math.min(Math.max(v / 255.0, 0), 1)),
+                    })
+                };
+            } catch (error) {
+                throw new Error('Error reading image file:', error);
+            }
+        })
+    }
+
+    function extractPixels(imageData) {
+        const pixels = [];
+
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            const red = imageData.data[i];
+            const green = imageData.data[i + 1];
+            const blue = imageData.data[i + 2];
+
+            pixels.push({ red, green, blue });
+        }
+
+        return pixels;
+    }
 
     /*let flower = OBJParser(await (await fetch("./flower.obj")).text(), {
         "flower": await (await fetch("./flower.mtl")).text()

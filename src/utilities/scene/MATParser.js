@@ -1,7 +1,7 @@
 import Vector3 from "../../core/classes/Vector3.js";
 import Material from "../../core/classes/Material.js";
 
-function parseMAT(mat) {
+function parseMAT(mat, textures) {
     const result = {};
 
     const lines = mat.split('\n');
@@ -13,7 +13,7 @@ function parseMAT(mat) {
 
         switch (keyword) {
             case 'newmtl':
-                let name = parts[0]
+                var name = parts[0]
 
                 lastMaterial = name;
                 result[name] = new Material();
@@ -25,6 +25,23 @@ function parseMAT(mat) {
             case 'Kd':
                 result[lastMaterial].diffuse = new Vector3(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]))
                 break;
+            case 'map_Kd':
+                var name = parts.pop().split("/").pop();
+
+                let texture = textures[name] 
+                let resolution = texture && texture.resolution;
+
+                if(!texture || !resolution || resolution.length !== 2){
+                    throw new Error(`The material file includes the texture "${name}", but the file isnt provided in the "textures" table, or the texture has a incorrect format.`)
+                }
+
+                if(texture.bitmap.length !== (resolution[0] * resolution[1] * 4)){
+                    throw new Error(`The material file includes the texture "${name}", but the texture's bitmap doesnt respect it's resolution.`)
+                }
+                
+                result[lastMaterial].diffuseTexture = textures[name];
+
+                break; 
             case 'Ks':
                 result[lastMaterial].specular = new Vector3(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]))
                 break;
