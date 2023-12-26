@@ -1,4 +1,5 @@
 import Vector3 from "./Vector3.js";
+import Vector2 from "./Vector2.js";
 
 class Triangle {
     a = new Vector3(0, 0, 0);
@@ -10,6 +11,10 @@ class Triangle {
     nc = new Vector3(0, 0, 0);
 
     t = new Vector3(0, 0, 0); // tangent
+
+    uva = new Vector2(0, 0)
+    uvb = new Vector2(0, 0)
+    uvc = new Vector2(0, 0)
 
     material = "default";
     objectId = 0;

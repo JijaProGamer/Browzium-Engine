@@ -7,7 +7,7 @@ import ATrousDenoiser from "./denoiser/ATrous";
 import emptyDenoiser from "./denoiser/none";
 
 
-let triangleStride = (3 * 4) + (3 * 4) + 4;
+let triangleStride = (3 * 4) + (3 * 4) + (2 * 4);
 let materialStride = 4 + 4 + 4;
 let octreeBranchStride = 4 + 4 + 4 + 8;
 
@@ -990,12 +990,12 @@ class RenderingManager {
             triangleData[locationStart + 0] = triangle.a.x;
             triangleData[locationStart + 1] = triangle.a.y;
             triangleData[locationStart + 2] = triangle.a.z;
-            triangleData[locationStart + 3] = 0;
+            triangleData[locationStart + 3] = materialsKeys.indexOf(triangle.material); // material index
 
             triangleData[locationStart + 4] = triangle.b.x;
             triangleData[locationStart + 5] = triangle.b.y;
             triangleData[locationStart + 6] = triangle.b.z;
-            triangleData[locationStart + 7] = 0;
+            triangleData[locationStart + 7] = triangle.objectId; // object id
 
             triangleData[locationStart + 8] = triangle.c.x;
             triangleData[locationStart + 9] = triangle.c.y;
@@ -1019,12 +1019,17 @@ class RenderingManager {
             triangleData[locationStart + 22] = triangle.nc.z;
             triangleData[locationStart + 23] = 0;
 
-            // Other data
+            // UVs
 
-            triangleData[locationStart + 24] = materialsKeys.indexOf(triangle.material);
-            triangleData[locationStart + 25] = triangle.objectId;
-            triangleData[locationStart + 26] = 0;
-            triangleData[locationStart + 27] = 0;
+            triangleData[locationStart + 24] = triangle.uva.x;
+            triangleData[locationStart + 25] = triangle.uva.y;
+            triangleData[locationStart + 26] = triangle.uvb.x;
+            triangleData[locationStart + 27] = triangle.uvb.y;
+
+            triangleData[locationStart + 28] = triangle.uvc.x;
+            triangleData[locationStart + 29] = triangle.uvc.y;
+            triangleData[locationStart + 30] = 0;
+            triangleData[locationStart + 31] = 0;
         }
 
         this.device.queue.writeBuffer(this.computeMapData, 0, triangleData, 0, triangleData.length);

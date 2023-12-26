@@ -60,8 +60,8 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
     result.position = ray_origin + ray_direction * t;
 
     let w = 1.0 - u - v;
-    //result.texture = w * tri.textureA + u * tri.textureB + v * tri.textureC;
-    result.uv = w * vec2<f32>(0, 0) + u * vec2<f32>(1, 0) + v * vec2<f32>(0, 1);
+    result.uv = w * tri.uva + u * tri.uvb + v * tri.uvc;
+    //result.uv = w * vec2<f32>(0, 0) + u * vec2<f32>(0.25, 0) + v * vec2<f32>(0, 0.25);
 
     /*if(!is_triangle_facing_camera(tri, ray_direction)){
         result.normal = -result.normal;

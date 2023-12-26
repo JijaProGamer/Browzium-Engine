@@ -14,23 +14,25 @@ struct InputGlobalData {
 
 struct Triangle {
     a: vec3<f32>,
-    padding0: f32,
+    material_index: f32,
     b: vec3<f32>,
-    padding1: f32,
+    object_id: f32,
     c: vec3<f32>,
-    padding2: f32,
+    padding0: f32,
 
     na: vec3<f32>,
-    padding3: f32,
+    padding1: f32,
     nb: vec3<f32>,
-    padding4: f32,
+    padding2: f32,
     nc: vec3<f32>,
-    padding5: f32,
+    padding3: f32,
 
-    material_index: f32,
-    object_id: f32,
-    padding7: f32,
-    padding8: f32,
+    uva: vec2<f32>,
+    uvb: vec2<f32>,
+    uvc: vec2<f32>,
+
+    padding4: f32,
+    padding5: f32,
 };
 
 struct Material {
