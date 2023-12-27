@@ -571,7 +571,8 @@ fn NoHit(
     let White = vec3<f32>(0.8, 0.8, 0.8);
     let Blue = vec3<f32>(0.15, 0.3, 0.9);
 
-    return (0.6-a) * White + (a + 0.4) * Blue;
+    return vec3<f32>(0.1, 0.1, 0.1);
+    //return (0.6-a) * White + (a + 0.4) * Blue;
 }
 
 struct BRDFDirectionOutput {

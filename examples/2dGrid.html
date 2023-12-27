@@ -405,11 +405,17 @@
         let triangles = []
 
         let material = new Material()
+        let materialGlow = new Material()
         let texture = await readImageFile("/maps/waifu.jpg");
 
         material.diffuse = new Vector3(1, 1, 1);
         material.diffuseTexture.resolution = texture.resolution;
         material.diffuseTexture.bitmap = texture.bitmap;
+
+        materialGlow.diffuse = new Vector3(1, 1, 1);
+        materialGlow.emittance = 1;
+        materialGlow.diffuseTexture.resolution = texture.resolution;
+        materialGlow.diffuseTexture.bitmap = texture.bitmap;
 
         for (let y = 0; y < densityResolution; y++) {
             for (let x = 0; x < densityResolution; x++) {
@@ -424,12 +430,23 @@
                 triangle1.a = a;
                 triangle1.b = b;
                 triangle1.c = c;
-                triangle1.material = "default";
 
                 triangle2.a = b;
                 triangle2.b = d;
                 triangle2.c = c;
-                triangle2.material = "default";
+
+                if(
+                    x > (densityResolution / 2 - 10/100 * densityResolution) &&
+                    x < (densityResolution / 2 + 10/100 * densityResolution) &&
+                    y > (densityResolution / 2 - 10/100 * densityResolution) &&
+                    y < (densityResolution / 2 + 10/100 * densityResolution)
+                ){
+                    triangle2.material = "glow";
+                    triangle1.material = "glow";
+                } else {
+                    triangle2.material = "default";
+                    triangle1.material = "default";
+                }
 
                 let ab1 = Vector3.subtract(b, a);
                 let ac1 = Vector3.subtract(c, a);
@@ -452,50 +469,63 @@
             }
         }
 
+        for (let triangleIndex = 0; triangleIndex < triangles.length; triangleIndex += 2) {
+            const x = Math.floor(triangleIndex / 2) % densityResolution;
+            const y = Math.floor(Math.floor(triangleIndex / 2) / densityResolution);
+
+            triangles[triangleIndex].uva = new Vector2(x / densityResolution, y / densityResolution);
+            triangles[triangleIndex].uvb = new Vector2((x + 1) / densityResolution, y / densityResolution);
+            triangles[triangleIndex].uvc = new Vector2(x / densityResolution, (y + 1) / densityResolution);
+
+            triangles[triangleIndex + 1].uva = new Vector2((x + 1) / densityResolution, y / densityResolution);
+            triangles[triangleIndex + 1].uvb = new Vector2((x + 1) / densityResolution, (y + 1) / densityResolution);
+            triangles[triangleIndex + 1].uvc = new Vector2(x / densityResolution, (y + 1) / densityResolution);
+        }
+
         let smoothList = [];
 
-        function smoothVertice(vertice, triIndex){
+        function smoothVertice(vertice, triIndex) {
             smoothList.push(vertice)
 
             let similarVertices = []
 
-            for (let i = 0; i < triangles.length; i++){
-                if(Vector3.subtract(triangles[i].a, vertice).length() < 0.01){
+            for (let i = 0; i < triangles.length; i++) {
+                if (Vector3.subtract(triangles[i].a, vertice).length() < 0.01) {
                     similarVertices.push({ triIndex: i, normal: triangles[i].na, normalName: "na" })
                 }
 
-                if(Vector3.subtract(triangles[i].b, vertice).length() < 0.01){
+                if (Vector3.subtract(triangles[i].b, vertice).length() < 0.01) {
                     similarVertices.push({ triIndex: i, normal: triangles[i].nb, normalName: "nb" })
                 }
 
-                if(Vector3.subtract(triangles[i].c, vertice).length() < 0.01){
+                if (Vector3.subtract(triangles[i].c, vertice).length() < 0.01) {
                     similarVertices.push({ triIndex: i, normal: triangles[i].nc, normalName: "nc" })
                 }
             }
 
-            if(similarVertices.length > 0){
+            if (similarVertices.length > 0) {
                 let averageNormal = new Vector3(0, 0, 0);
 
-                for(let similarVertice of similarVertices){
+                for (let similarVertice of similarVertices) {
                     averageNormal.add(similarVertice.normal)
                 }
 
                 averageNormal.divideScalar(similarVertices.length)
                 averageNormal.normalize()
 
-                for(let similarVertice of similarVertices){
-                    triangles[similarVertice.triIndex][normalName]
+                for (let similarVertice of similarVertices) {
+                    triangles[similarVertice.triIndex][similarVertice.normalName] = averageNormal;
                 }
             }
         };
 
         for (let i = 0; i < triangles.length; i++) {
-            if(!smoothList.includes(triangles[i].a)) smoothVertice(triangles[i].a, i)
-            if(!smoothList.includes(triangles[i].b)) smoothVertice(triangles[i].b, i)
-            if(!smoothList.includes(triangles[i].c)) smoothVertice(triangles[i].c, i)
+            if (!smoothList.includes(triangles[i].a)) smoothVertice(triangles[i].a, i)
+            if (!smoothList.includes(triangles[i].b)) smoothVertice(triangles[i].b, i)
+            if (!smoothList.includes(triangles[i].c)) smoothVertice(triangles[i].c, i)
         }
 
-        await GameEngine.Renderer.SetMaterials({ default: material }, true)
+        await GameEngine.Renderer.SetMaterials({ default: material, glow: materialGlow}, true)
         await GameEngine.Renderer.SetTriangles(triangles, true, true, true)
     })();
 
