@@ -1,4 +1,5 @@
 import Vector3 from "../../core/classes/Vector3.js";
+import Vector2 from "../../core/classes/Vector2.js";
 import Material from "../../core/classes/Material.js";
 
 function parseMAT(mat, textures) {
@@ -31,7 +32,7 @@ function parseMAT(mat, textures) {
                 let texture = textures[name] 
                 let resolution = texture && texture.resolution;
 
-                if(!texture || !resolution || resolution.length !== 2){
+                if(!texture || !resolution){
                     throw new Error(`The material file includes the texture "${name}", but the file isnt provided in the "textures" table, or the texture has a incorrect format.`)
                 }
 
@@ -39,7 +40,8 @@ function parseMAT(mat, textures) {
                     throw new Error(`The material file includes the texture "${name}", but the texture's bitmap doesnt respect it's resolution.`)
                 }*/
                 
-                result[lastMaterial].diffuseTexture = textures[name];
+                result[lastMaterial].diffuseTexture.resolution = textures[name].resolution;
+                result[lastMaterial].diffuseTexture.bitmap = textures[name].bitmap;
 
                 break; 
             case 'Ks':

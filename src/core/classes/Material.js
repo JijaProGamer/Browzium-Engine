@@ -1,4 +1,5 @@
 import Vector3 from "./Vector3.js";
+import Vector2 from "./Vector2.js"
 
 class Material {
     ambient = new Vector3(0, 0, 0)
@@ -14,8 +15,14 @@ class Material {
     emittance = 0
 
     diffuseTexture = {
-        resolution: [0, 0],
+        resolution: new Vector2(0, 0),
         bitmap: [],
+
+        atlasInfo: {
+            depth: -1,
+            start: new Vector2(0, 0),
+            extend: new Vector2(0, 0)
+        },
     }
 }
 

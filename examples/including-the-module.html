@@ -111,6 +111,9 @@
     GameEngine.Renderer.gammaCorrect = true;
     GameEngine.Renderer.denoiser = "none";
 
+    GameEngine.Renderer.focalLength = 2.5;
+    GameEngine.Renderer.apertureSize = 0;
+
     GameEngine.Renderer.denoisersBuilt.atrous.levels = 5;
 
     GameEngine.Renderer.bounces = 5;
@@ -377,34 +380,53 @@
         GameEngine.StepFrame()
     }, 1000 / 50)
 
-    // Scene stuff
+        // Scene stuff
 
-    ; (async () => {
-        let map = "cornell_low_light"
-        let cornellBox = OBJParser(await (await fetch(`/maps/${map}/map.obj`)).text(), {
-            "map": await (await fetch(`/maps/${map}/map.mtl`)).text()
-        }, {
-            //"example_texture.bmp": await readImageFile("/maps/example_texture.bmp")
-            "example_texture.bmp": await readImageFile("/maps/amogus.jpg")
-        }, {
-            objectIdentityMode: "perObject"
-        })
+        ; (async () => {
+            let map = "cornell_low_light"
+            let cornellBox = OBJParser(await (await fetch(`/maps/${map}/map.obj`)).text(), {
+                "map": await (await fetch(`/maps/${map}/map.mtl`)).text()
+            }, {
+                //"example_texture.bmp": await readImageFile("/maps/example_texture.bmp")
+                "example_texture.bmp": await readImageFile("/maps/waifu.jpg"),
+                "rebex.jpg": await readImageFile("/maps/rebex.jpg")
+            }, {
+                objectIdentityMode: "perObject"
+            })
 
-        console.log(cornellBox, 69)
-        //cornellBox.triangles.splice(cornellBox.objects.front_wall[0], 1)
-        //cornellBox.triangles.splice(cornellBox.objects.front_wall[1] - 1, 1)
+            console.log(cornellBox, 69)
+            //cornellBox.triangles.splice(cornellBox.objects.front_wall[0], 1)
+            //cornellBox.triangles.splice(cornellBox.objects.front_wall[1] - 1, 1)
 
-        cornellBox.triangles[cornellBox.objects.right_wall[0]].uva = new Vector2(0, 0);
-        cornellBox.triangles[cornellBox.objects.right_wall[0]].uvb = new Vector2(0.25, 0.25);
-        cornellBox.triangles[cornellBox.objects.right_wall[0]].uvc = new Vector2(0, 0.25);
+            function configureQuadUVs(name) {
+                let objs = cornellBox.objects[name];
 
-        cornellBox.triangles[cornellBox.objects.right_wall[1]].uva = new Vector2(0, 0);
-        cornellBox.triangles[cornellBox.objects.right_wall[1]].uvb = new Vector2(0.25, 0);
-        cornellBox.triangles[cornellBox.objects.right_wall[1]].uvc = new Vector2(0.25, 0.25);
+                for (let objIndex = 0; objIndex < objs.length; objIndex++) {
+                    if (objIndex % 2 == 0) {
+                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uva = new Vector2(0, 0);
+                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uvb = new Vector2(1, 1);
+                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uvc = new Vector2(0, 1);
+                    } else {
+                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uva = new Vector2(0, 0);
+                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uvb = new Vector2(1, 0);
+                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uvc = new Vector2(1, 1);
+                    }
+                }
+            }
 
-        await GameEngine.Renderer.SetMaterials(cornellBox.materials, true)
-        await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true, true, true)
-    })();
+            configureQuadUVs("ceiling")
+            configureQuadUVs("back_wall")
+            configureQuadUVs("floor")
+            configureQuadUVs("front_wall")
+            configureQuadUVs("left_wall")
+            configureQuadUVs("light")
+            configureQuadUVs("right_wall")
+            configureQuadUVs("short_box")
+            configureQuadUVs("tall_box")
+
+            await GameEngine.Renderer.SetMaterials(cornellBox.materials, true)
+            await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true, true, true)
+        })();
 
     function readImageFile(url) {
         return new Promise((resolve, reject) => {
@@ -426,11 +448,11 @@
                         resolution: [image.width, image.height],
                         bitmap: rawPixels.map((v) => Math.min(Math.max(v / 255.0, 0), 1)),
                     })*/
-                    
+
                     //const rawPixels = context.getImageData(0, 0, image.width, image.height).data;
 
                     resolve({
-                        resolution: [image.width, image.height],
+                        resolution: new Vector2(image.width, image.height),
                         //bitmap: rawPixels,
                         bitmap: canvas,
                     })

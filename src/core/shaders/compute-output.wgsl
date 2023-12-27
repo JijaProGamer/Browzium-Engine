@@ -1,11 +1,11 @@
 struct InputGlobalData {
     resolution: vec2<f32>,
     fov: f32,
+    focalLength: f32,
 
-    padding0: f32,
     CameraPosition: vec3<f32>,
+    apertureSize: f32,
 
-    padding1: f32,
     CameraToWorldMatrix: mat4x4<f32>,
 
     tonemapmode: f32,
@@ -41,6 +41,9 @@ struct Material {
     
     specular_color: vec3<f32>,
     transparency: f32,
+
+    diffuse_atlas_start: vec2<f32>,
+    diffuse_atlas_extend: vec2<f32>,
     
     index_of_refraction: f32,
     reflectance: f32,
@@ -259,9 +262,9 @@ const errorAmount = 0.0001;
 fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var result: HitResult;
 
-    if(!is_triangle_facing_camera(tri, ray_direction)){
+    /*if(!is_triangle_facing_camera(tri, ray_direction)){
         return result;
-    }
+    }*/
 
     let edge1 = tri.b - tri.a;
     let edge2 = tri.c - tri.a;
@@ -300,11 +303,10 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 
     let w = 1.0 - u - v;
     result.uv = w * tri.uva + u * tri.uvb + v * tri.uvc;
-    //result.uv = w * vec2<f32>(0, 0) + u * vec2<f32>(0.25, 0) + v * vec2<f32>(0, 0.25);
 
-    /*if(!is_triangle_facing_camera(tri, ray_direction)){
+    if(!is_triangle_facing_camera(tri, ray_direction)){
         result.normal = -result.normal;
-    }*/
+    }
 
     return result;
 }
@@ -655,7 +657,9 @@ fn getColor(
         return vec4<f32>(1);
     }
 
-    var textureColor = textureSampleLevel(textureAtlas, textureAtlasSampler, intersection.uv, i32(material.texture_layer), 0);
+    let textureCoord = material.diffuse_atlas_start + intersection.uv * material.diffuse_atlas_extend;
+
+    var textureColor = textureSampleLevel(textureAtlas, textureAtlasSampler, textureCoord, i32(material.texture_layer), 0);
     let triangleColor = vec4<f32>(material.color, 1);
 
     if(material.texture_layer == -1.0){
@@ -782,7 +786,7 @@ fn BRDFDirection(
 
 const maxDepth: i32 = 4;
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var oldMaterial: Material;
@@ -790,7 +794,8 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var realDirection = direction;
     var realStart = start;
 
-    var rayColour = vec3<f32>(1);
+    var incomingLight = vec3<f32>(0);
+    var rayColor = vec3<f32>(1);
 
     var pixelHash = rawPixelHash;
     var hit_light = false;
@@ -828,19 +833,18 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             if(wasReflection){
                 output.albedo *= oldMaterial.color;
             }
+
+
         }
 
         if (!intersection.hit) {
             emittance = NoHit(realDirection, realStart);
 
-            output.noisy_color += vec4<f32>(rayColour * emittance, 0);
+            incomingLight += rayColor * emittance;
+            rayColor *= emittance;
+
             break;
         }
-
-        /*if(material.transparency > 0){
-            output.noisy_color = vec4<f32>(1, 0, 0, output.noisy_color.w);
-            break;
-        }*/
 
         let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
         var reflected = (max(1 - material.emittance, 0) * getColor(material, intersection).rgb);
@@ -852,30 +856,32 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         if(depth > 0) {weightIncoming = 0.5;}
 
         emittance = indirectIncoming;
+        //incomingLight += directIncoming.color * max(dot(BRDFDirectionValue.direction, intersection.normal), 0.0);
+
         //emittance = weightIncoming * (indirectIncoming + directIncoming.color);
         //pixelHash = directIncoming.seed;
 
         gatherDenoisingData = depth == 0 && (BRDFDirectionValue.isSpecular || BRDFDirectionValue.isTransparent);
         wasReflection = gatherDenoisingData;
 
-        output.noisy_color += vec4<f32>(rayColour * emittance, 0);
-        rayColour *= emittance + reflected;
+        incomingLight += emittance * rayColor;
+
+        if(!gatherDenoisingData){
+            rayColor *= reflected;
+        }
 
         realStart = intersection.position;
         realDirection = BRDFDirectionValue.direction;
         oldMaterial = material;
     }
 
-    output.noisy_color.w = length(output.noisy_color.xyz / emittance);
-    if(emittance.x + emittance.y + emittance.z == 0){
-        output.noisy_color.w = 0;
-    }
-
+    output.noisy_color = vec4<f32>(rayColor + incomingLight, 0);
+    
     output.seed = pixelHash;
     return output;
 }
 
-/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     output.noisy_color = vec4<f32>(1);
@@ -892,11 +898,11 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var directIncoming = CalculateDirect(intersection.position, rawPixelHash);
 
     if(directIncoming.wasHit){
-        output.albedo = material.color * directIncoming.color;
+        output.albedo = getColor(material, intersection).rgb * directIncoming.color; // dot(direction, directIncoming.direction);
     }
 
     if(material.emittance > 0){
-        output.albedo = material.color * material.emittance;
+        output.albedo = getColor(material, intersection).rgb * material.emittance;
     }
 
     output.seed = directIncoming.seed;
@@ -987,6 +993,30 @@ fn calculatePixelDirection(
     return (inputData.CameraToWorldMatrix * vec4<f32>(cameraX, cameraY, -1, 1)).xyz;
 }
 
+struct DOFOutput
+{
+    start: vec3<f32>,
+    direction: vec3<f32>,
+    pixelHash: f32,
+}
+
+fn applyDOF(
+    direction: vec3<f32>,
+    pixel: vec2<f32>,
+    pixelHash: f32,
+) -> DOFOutput {
+    var output: DOFOutput;
+    let focalPoint = inputData.CameraPosition + direction * inputData.focalLength;
+    let randomAperture = random2Vec2(pixelHash, pixel);
+    let apertureShift = randomAperture.output * inputData.apertureSize;
+
+    output.start = inputData.CameraPosition + vec3<f32>(apertureShift.x, apertureShift.y, 0.0);
+    output.direction = normalize(focalPoint - output.start);
+    output.pixelHash = randomAperture.seed;
+
+    return output;
+}
+
 fn calculateTemporalData(
     pixel: vec2<f32>,
     traceOutput: Pixel,
@@ -1004,22 +1034,20 @@ fn calculatePixelColor(
     pixel: vec2<f32>,
     initialPixelHash: f32, 
 ) -> TraceOutput {
-    var pixelHash = randomVec2(initialPixelHash, pixel);
+    //var pixelHash = randomVec2(initialPixelHash, pixel);
+    //var pixelModifier = random2Vec2(/*pixelHash*/initialPixelHash, pixel);
 
-    var pixelModifier = random2Vec2(pixelHash, pixel);
-    pixelHash = pixelModifier.seed;
-
-    //var realPixel = pixel;
-    var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
-    //var realPixel = pixel + pixelModifier.output;
-
-    let direction = calculatePixelDirection(realPixel);
-    let start = inputData.CameraPosition;
+    //var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
+    //let DOF = applyDOF(calculatePixelDirection(realPixel), realPixel, pixelModifier.seed);
+    let DOF = applyDOF(calculatePixelDirection(pixel), pixel, initialPixelHash);
+    
+    let direction = DOF.direction;
+    let start = DOF.start;
 
     var output: TraceOutput;
 
     //let temporalData = getTemporalData(realPixel);
-    var traceOutput = RunTracer(direction, start, pixel, pixelHash);
+    var traceOutput = RunTracer(direction, start, DOF.pixelHash);
 
     //traceOutput.velocity = (temporalData.rayDirection - direction).xy;
 

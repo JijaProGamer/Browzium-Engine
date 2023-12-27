@@ -20,9 +20,9 @@ const errorAmount = 0.0001;
 fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var result: HitResult;
 
-    if(!is_triangle_facing_camera(tri, ray_direction)){
+    /*if(!is_triangle_facing_camera(tri, ray_direction)){
         return result;
-    }
+    }*/
 
     let edge1 = tri.b - tri.a;
     let edge2 = tri.c - tri.a;
@@ -61,11 +61,10 @@ fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) 
 
     let w = 1.0 - u - v;
     result.uv = w * tri.uva + u * tri.uvb + v * tri.uvc;
-    //result.uv = w * vec2<f32>(0, 0) + u * vec2<f32>(0.25, 0) + v * vec2<f32>(0, 0.25);
 
-    /*if(!is_triangle_facing_camera(tri, ray_direction)){
+    if(!is_triangle_facing_camera(tri, ray_direction)){
         result.normal = -result.normal;
-    }*/
+    }
 
     return result;
 }

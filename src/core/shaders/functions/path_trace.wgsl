@@ -96,7 +96,9 @@ fn getColor(
         return vec4<f32>(1);
     }
 
-    var textureColor = textureSampleLevel(textureAtlas, textureAtlasSampler, intersection.uv, i32(material.texture_layer), 0);
+    let textureCoord = material.diffuse_atlas_start + intersection.uv * material.diffuse_atlas_extend;
+
+    var textureColor = textureSampleLevel(textureAtlas, textureAtlasSampler, textureCoord, i32(material.texture_layer), 0);
     let triangleColor = vec4<f32>(material.color, 1);
 
     if(material.texture_layer == -1.0){
@@ -223,7 +225,7 @@ fn BRDFDirection(
 
 const maxDepth: i32 = 4;
 
-fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var oldMaterial: Material;
@@ -231,7 +233,8 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var realDirection = direction;
     var realStart = start;
 
-    var rayColour = vec3<f32>(1);
+    var incomingLight = vec3<f32>(0);
+    var rayColor = vec3<f32>(1);
 
     var pixelHash = rawPixelHash;
     var hit_light = false;
@@ -269,19 +272,18 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
             if(wasReflection){
                 output.albedo *= oldMaterial.color;
             }
+
+
         }
 
         if (!intersection.hit) {
             emittance = NoHit(realDirection, realStart);
 
-            output.noisy_color += vec4<f32>(rayColour * emittance, 0);
+            incomingLight += rayColor * emittance;
+            rayColor *= emittance;
+
             break;
         }
-
-        /*if(material.transparency > 0){
-            output.noisy_color = vec4<f32>(1, 0, 0, output.noisy_color.w);
-            break;
-        }*/
 
         let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
         var reflected = (max(1 - material.emittance, 0) * getColor(material, intersection).rgb);
@@ -293,30 +295,32 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
         if(depth > 0) {weightIncoming = 0.5;}
 
         emittance = indirectIncoming;
+        //incomingLight += directIncoming.color * max(dot(BRDFDirectionValue.direction, intersection.normal), 0.0);
+
         //emittance = weightIncoming * (indirectIncoming + directIncoming.color);
         //pixelHash = directIncoming.seed;
 
         gatherDenoisingData = depth == 0 && (BRDFDirectionValue.isSpecular || BRDFDirectionValue.isTransparent);
         wasReflection = gatherDenoisingData;
 
-        output.noisy_color += vec4<f32>(rayColour * emittance, 0);
-        rayColour *= emittance + reflected;
+        incomingLight += emittance * rayColor;
+
+        if(!gatherDenoisingData){
+            rayColor *= reflected;
+        }
 
         realStart = intersection.position;
         realDirection = BRDFDirectionValue.direction;
         oldMaterial = material;
     }
 
-    output.noisy_color.w = length(output.noisy_color.xyz / emittance);
-    if(emittance.x + emittance.y + emittance.z == 0){
-        output.noisy_color.w = 0;
-    }
-
+    output.noisy_color = vec4<f32>(rayColor + incomingLight, 0);
+    
     output.seed = pixelHash;
     return output;
 }
 
-/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     output.noisy_color = vec4<f32>(1);
@@ -333,11 +337,11 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelH
     var directIncoming = CalculateDirect(intersection.position, rawPixelHash);
 
     if(directIncoming.wasHit){
-        output.albedo = material.color * directIncoming.color;
+        output.albedo = getColor(material, intersection).rgb * directIncoming.color; // dot(direction, directIncoming.direction);
     }
 
     if(material.emittance > 0){
-        output.albedo = material.color * material.emittance;
+        output.albedo = getColor(material, intersection).rgb * material.emittance;
     }
 
     output.seed = directIncoming.seed;

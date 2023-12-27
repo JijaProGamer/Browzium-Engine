@@ -1,11 +1,11 @@
 struct InputGlobalData {
     resolution: vec2<f32>,
     fov: f32,
+    focalLength: f32,
 
-    padding0: f32,
     CameraPosition: vec3<f32>,
+    apertureSize: f32,
 
-    padding1: f32,
     CameraToWorldMatrix: mat4x4<f32>,
 
     tonemapmode: f32,
@@ -41,6 +41,9 @@ struct Material {
     
     specular_color: vec3<f32>,
     transparency: f32,
+
+    diffuse_atlas_start: vec2<f32>,
+    diffuse_atlas_extend: vec2<f32>,
     
     index_of_refraction: f32,
     reflectance: f32,

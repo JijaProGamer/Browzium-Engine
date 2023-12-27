@@ -28,6 +28,30 @@ fn calculatePixelDirection(
     return (inputData.CameraToWorldMatrix * vec4<f32>(cameraX, cameraY, -1, 1)).xyz;
 }
 
+struct DOFOutput
+{
+    start: vec3<f32>,
+    direction: vec3<f32>,
+    pixelHash: f32,
+}
+
+fn applyDOF(
+    direction: vec3<f32>,
+    pixel: vec2<f32>,
+    pixelHash: f32,
+) -> DOFOutput {
+    var output: DOFOutput;
+    let focalPoint = inputData.CameraPosition + direction * inputData.focalLength;
+    let randomAperture = random2Vec2(pixelHash, pixel);
+    let apertureShift = randomAperture.output * inputData.apertureSize;
+
+    output.start = inputData.CameraPosition + vec3<f32>(apertureShift.x, apertureShift.y, 0.0);
+    output.direction = normalize(focalPoint - output.start);
+    output.pixelHash = randomAperture.seed;
+
+    return output;
+}
+
 fn calculateTemporalData(
     pixel: vec2<f32>,
     traceOutput: Pixel,
@@ -45,22 +69,20 @@ fn calculatePixelColor(
     pixel: vec2<f32>,
     initialPixelHash: f32, 
 ) -> TraceOutput {
-    var pixelHash = randomVec2(initialPixelHash, pixel);
+    //var pixelHash = randomVec2(initialPixelHash, pixel);
+    //var pixelModifier = random2Vec2(/*pixelHash*/initialPixelHash, pixel);
 
-    var pixelModifier = random2Vec2(pixelHash, pixel);
-    pixelHash = pixelModifier.seed;
-
-    //var realPixel = pixel;
-    var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
-    //var realPixel = pixel + pixelModifier.output;
-
-    let direction = calculatePixelDirection(realPixel);
-    let start = inputData.CameraPosition;
+    //var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
+    //let DOF = applyDOF(calculatePixelDirection(realPixel), realPixel, pixelModifier.seed);
+    let DOF = applyDOF(calculatePixelDirection(pixel), pixel, initialPixelHash);
+    
+    let direction = DOF.direction;
+    let start = DOF.start;
 
     var output: TraceOutput;
 
     //let temporalData = getTemporalData(realPixel);
-    var traceOutput = RunTracer(direction, start, pixel, pixelHash);
+    var traceOutput = RunTracer(direction, start, DOF.pixelHash);
 
     //traceOutput.velocity = (temporalData.rayDirection - direction).xy;
 

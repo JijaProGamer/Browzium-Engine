@@ -1,6 +1,7 @@
 //import Denoiser from "./denoiser.js"
 
 import Vector3 from "../classes/Vector3";
+import Vector2 from "../classes/Vector2";
 import BVHTree from "../classes/bvh";
 
 import ATrousDenoiser from "./denoiser/ATrous";
@@ -8,7 +9,7 @@ import emptyDenoiser from "./denoiser/none";
 
 
 let triangleStride = (3 * 4) + (3 * 4) + (2 * 4);
-let materialStride = 4 + 4 + 4;
+let materialStride = 4 + 4 + 4 + 4;
 let octreeBranchStride = 4 + 4 + 4 + 8;
 
 function getNext2Power(n) {
@@ -79,11 +80,17 @@ class RenderingManager {
 
     bounces = 5;
     rpp = 3;
+
     tonemapMode = 1;
     gammaCorrect = true;
+
     denoiser = "atrous"
+
     frame = 0;
     staticFrames = 0;
+
+    focalLength = 0;
+    apertureSize = 0;
 
     denoisersBuilt = {}
 
@@ -532,7 +539,8 @@ class RenderingManager {
     }
 
     #computeAtlasFormat(triangles) { // actually implement this xd
-        let maxSize = this.device.limits.maxTextureDimension2D
+        let maxSize = 4096;
+        //let maxSize = this.device.limits.maxTextureDimension2D
         let maxDepth = this.device.limits.maxTextureArrayLayers
 
         let textures = [[]]
@@ -541,12 +549,66 @@ class RenderingManager {
             let material = this.materials[materialName]
             if (material.diffuseTexture.bitmap.length == 0) { continue; }
 
-            //for(let textures[])
-            textures[0].push({
-                x: 0,
-                y: 0,
-                width: material.diffuseTexture.resolution[0],
-                height: material.diffuseTexture.resolution[1],
+            let start = new Vector3(0, 0, 0);
+            let resolution = material.diffuseTexture.resolution;
+            let spaceFound = false;
+
+            for(let textureIndex = 0; textureIndex < textures.length; textureIndex += 1){
+                let atlas = textures[textureIndex];
+
+                for (let x = 0; x <= maxSize - resolution.x; x += 1) {
+                    for (let y = 0; y <= maxSize - resolution.y; y += 1) {
+                        let isSpaceFree = true;
+    
+                        for (let tex of atlas) {
+                            if (x < tex.x + tex.width &&
+                                x + resolution.x > tex.x &&
+                                y < tex.y + tex.height &&
+                                y + resolution.y > tex.y) {
+                                isSpaceFree = false;
+                                break;
+                            }
+                        }
+    
+                        if (isSpaceFree) {
+                            start.x = x;
+                            start.y = y;
+                            start.z = textureIndex;
+
+                            spaceFound = true;
+                            break;
+                        }
+                    }
+    
+                    if (spaceFound) {
+                        break;
+                    }
+                }
+    
+                if (spaceFound) {
+                    break;
+                }
+            }
+
+            if(!spaceFound){
+                start.z = textures.length;
+                textures[start.z].push([])
+            }
+
+            material.diffuseTexture.atlasInfo.depth = start.z;
+            material.diffuseTexture.atlasInfo.start = new Vector2(start.x / maxSize, start.y / maxSize);
+            material.diffuseTexture.atlasInfo.extend = new Vector2(resolution.x / maxSize, resolution.y / maxSize);
+
+            if(start.z >= maxDepth){
+                throw new Error("The texture atlas is overflowing. Please reduce your textures or the resolution of your textures")
+            }
+
+            textures[start.z].push({
+                x: start.x,
+                y: start.y,
+                depth: start.z,
+                width: resolution.x,
+                height: resolution.y,
                 bitmap: material.diffuseTexture.bitmap,
                 material
             })
@@ -592,8 +654,6 @@ class RenderingManager {
             for (let textureIndex = 0; textureIndex < atlasDepth.length; textureIndex++) {
                 let texture = atlasDepth[textureIndex]
 
-                let start = [0, 0, 0];
-
                 if (
                     texture.bitmap instanceof ImageBitmap ||
                     texture.bitmap instanceof HTMLVideoElement ||
@@ -603,12 +663,12 @@ class RenderingManager {
                 ) {
                     this.device.queue.copyExternalImageToTexture(
                         {
-                            //origin: [0, 0],
+                            origin: [0, 0],
                             source: texture.bitmap
                         },
                         {
-                            //mipLevel: 0,
-                            //origin: start,
+                            mipLevel: 0,
+                            origin: [texture.x, texture.y],
                             texture: this.textureAtlas
                         },
                         [
@@ -621,7 +681,7 @@ class RenderingManager {
                     this.device.queue.writeTexture(
                         {
                             mipLevel: 0,
-                            origin: start,
+                            //origin: start,
                             texture: this.textureAtlas
                         },
                         texture.bitmap.buffer | texture.bitmap,
@@ -734,12 +794,12 @@ class RenderingManager {
             this.Camera.FieldOfView,
             //this.rpp,
             //this.bounces,
-            0,
+            this.focalLength,
 
             this.Camera.Position.x,
             this.Camera.Position.y,
             this.Camera.Position.z,
-            0,
+            this.apertureSize,
 
             ...this.Camera.CameraToWorldMatrix.getContents(),
 
@@ -796,26 +856,28 @@ class RenderingManager {
             materialData[locationStart + 0] = material.diffuse.x;
             materialData[locationStart + 1] = material.diffuse.y;
             materialData[locationStart + 2] = material.diffuse.z;
-            materialData[locationStart + 3] = -1; // texture layer
-            // will have to change later the texture layer
-
-            if (material.diffuseTexture.resolution[0] > 0) {
-                materialData[locationStart + 3] = 0;
-            }
+            materialData[locationStart + 3] = material.diffuseTexture.atlasInfo.depth;
 
             // Specular
 
             materialData[locationStart + 4] = material.specular.x;
             materialData[locationStart + 5] = material.specular.y;
             materialData[locationStart + 6] = material.specular.z;
+            materialData[locationStart + 7] = material.transparency;
+
+            // UV Mapping
+
+            materialData[locationStart + 8] = material.diffuseTexture.atlasInfo.start.x;
+            materialData[locationStart + 9] = material.diffuseTexture.atlasInfo.start.y;
+            materialData[locationStart + 10] = material.diffuseTexture.atlasInfo.extend.x;
+            materialData[locationStart + 11] = material.diffuseTexture.atlasInfo.extend.y;
 
             // Other stuff
 
-            materialData[locationStart + 7] = material.transparency;
-            materialData[locationStart + 8] = material.index_of_refraction;
-            materialData[locationStart + 9] = material.reflectance;
-            materialData[locationStart + 10] = material.emittance;
-            materialData[locationStart + 11] = material.roughtness;
+            materialData[locationStart + 12] = material.index_of_refraction;
+            materialData[locationStart + 13] = material.reflectance;
+            materialData[locationStart + 14] = material.emittance;
+            materialData[locationStart + 15] = material.roughtness;
         }
 
         console.log("Material data: ", this.materials, materialData)
@@ -948,6 +1010,8 @@ class RenderingManager {
             this.#computeAtlasFormat(triangleArray)
             this.#makeTextureAtlas()
             this.#applyTextureAtlas()
+
+            this.SetMaterials(this.materials, true)
         }
 
 
