@@ -2,9 +2,10 @@
 # www.blender.org
 
 newmtl BlankWall
+map_Kd C:/Users/Bloxxy/Desktop/Browzium Engine/examples/example_texture.bmp
 Ns 94.302170
 Ka 1.000000 1.000000 1.000000
-Kd 0.000000 0.000000 0.000000
+Kd 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.000000
@@ -12,7 +13,7 @@ d 1.000000
 illum 2
 
 newmtl BloodyRed
-map_Kd C:/Users/Bloxxy/Desktop/Browzium Engine/examples/example_texture.bmp
+map_Kd C:/Users/Bloxxy/Desktop/Browzium Engine/examples/waifu.jpg
 Ns 96.078453
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -43,7 +44,7 @@ d 1.000000
 illum 2
 
 newmtl Light
-Em 20
+Em 1
 Ns 0.000000
 Ka 1.000000 1.000000 1.000000
 Kd 1.000000 1.000000 1.000000
@@ -58,13 +59,14 @@ Tr 0.5
 Re 1
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
-Kd 0.773 1 0.102
+Kd 0.7 1 0.1
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1
 illum 2
 
 newmtl TallBox
+map_Kd C:/Users/Bloxxy/Desktop/Browzium Engine/examples/bad_meme.jpg
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.155869 0.037481 0.800149

@@ -291,13 +291,13 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel
 
         //var directIncoming = CalculateDirect(intersection.position, pixelHash);
         var indirectIncoming = getColor(material, intersection).rgb * material.emittance;
-        var weightIncoming = 1.0; 
-        if(depth > 0) {weightIncoming = 0.5;}
+        //var weightIncoming = 1.0; 
+        //if(depth == 1) {weightIncoming = 0.5;}
 
         emittance = indirectIncoming;
-        //incomingLight += directIncoming.color * max(dot(BRDFDirectionValue.direction, intersection.normal), 0.0);
 
-        //emittance = weightIncoming * (indirectIncoming + directIncoming.color);
+        //emittance =  indirectIncoming + directIncoming.color;
+        //emittance = directIncoming.color;
         //pixelHash = directIncoming.seed;
 
         gatherDenoisingData = depth == 0 && (BRDFDirectionValue.isSpecular || BRDFDirectionValue.isTransparent);

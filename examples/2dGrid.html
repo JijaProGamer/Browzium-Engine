@@ -18,6 +18,8 @@
 
     <p id="frame_time">average frame time: %s</p>
     <p id="frames_per_second">frames per second: %s</p>
+
+    <script src="/examples/perlin.js"></script>
 </body>
 
 <style>
@@ -62,7 +64,7 @@
 
 <script type="module">
     import Engine from "../dist/bundle.js"
-    import { Vector3, Triangle, Matrix, Vector2 } from "../dist/bundle.js"
+    import { Vector3, Triangle, Matrix, Vector2, Material } from "../dist/bundle.js"
     import { OBJParser } from "../dist/bundle.js"
 
     /*
@@ -380,54 +382,122 @@
         GameEngine.StepFrame()
     }, 1000 / 50)
 
-        // Scene stuff
+    let densityArray = []
+    let densityResolution = 16;
 
-        ; (async () => {
-            let map = "cornell_low_light"
-            let cornellBox = OBJParser(await (await fetch(`/maps/${map}/map.obj`)).text(), {
-                "map": await (await fetch(`/maps/${map}/map.mtl`)).text()
-            }, {
-                "example_texture.bmp": await readImageFile("/maps/example_texture.bmp"),
-                "bad_meme.jpg": await readImageFile("/maps/bad_meme.jpg"),
-                "waifu.jpg": await readImageFile("/maps/waifu.jpg"),
-                "rebex.jpg": await readImageFile("/maps/rebex.jpg")
-            }, {
-                objectIdentityMode: "perObject"
-            })
+    let mapScale = 1;
+    let scale = 5;
+    let frequency = 0.1;
 
-            console.log(cornellBox, 69)
-            //cornellBox.triangles.splice(cornellBox.objects.front_wall[0], 1)
-            //cornellBox.triangles.splice(cornellBox.objects.front_wall[1] - 1, 1)
+    noise.seed(Math.random());
 
-            function configureQuadUVs(name) {
-                let objs = cornellBox.objects[name];
+    for (let x = 0; x <= densityResolution; x++) {
+        densityArray[x] = []
+        for (let y = 0; y <= densityResolution; y++) {
+            densityArray[x][y] = noise.simplex2(x * frequency, y * frequency) * scale;
+            //densityArray[x][y] = (Math.sin(x * frequency) + Math.sin(y * frequency)) / 2 * scale;
+        }
+    }
 
-                for (let objIndex = 0; objIndex < objs.length; objIndex++) {
-                    if (objIndex % 2 == 0) {
-                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uva = new Vector2(0, 0);
-                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uvb = new Vector2(1, 1);
-                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uvc = new Vector2(0, 1);
-                    } else {
-                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uva = new Vector2(0, 0);
-                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uvb = new Vector2(1, 0);
-                        cornellBox.triangles[cornellBox.objects[name][objIndex]].uvc = new Vector2(1, 1);
-                    }
+    // Scene stuff
+
+    ; (async () => {
+        let triangles = []
+
+        let material = new Material()
+        let texture = await readImageFile("/maps/waifu.jpg");
+
+        material.diffuse = new Vector3(1, 1, 1);
+        material.diffuseTexture.resolution = texture.resolution;
+        material.diffuseTexture.bitmap = texture.bitmap;
+
+        for (let y = 0; y < densityResolution; y++) {
+            for (let x = 0; x < densityResolution; x++) {
+                const a = new Vector3(x * mapScale, densityArray[x][y], y * mapScale);
+                const b = new Vector3((x + 1) * mapScale, densityArray[x + 1][y], y * mapScale);
+                const c = new Vector3(x * mapScale, densityArray[x][y + 1] * mapScale, (y + 1) * mapScale);
+                const d = new Vector3((x + 1) * mapScale, densityArray[x + 1][y + 1] * mapScale, (y + 1) * mapScale);
+
+                const triangle1 = new Triangle();
+                const triangle2 = new Triangle();
+
+                triangle1.a = a;
+                triangle1.b = b;
+                triangle1.c = c;
+                triangle1.material = "default";
+
+                triangle2.a = b;
+                triangle2.b = d;
+                triangle2.c = c;
+                triangle2.material = "default";
+
+                let ab1 = Vector3.subtract(b, a);
+                let ac1 = Vector3.subtract(c, a);
+                let tangent1 = ab1.cross(ac1).normalize();
+
+                let ab2 = Vector3.subtract(d, b);
+                let ac2 = Vector3.subtract(c, b);
+                let tangent2 = ab2.cross(ac2).normalize();
+
+                triangle1.na = tangent1;
+                triangle1.nb = tangent1;
+                triangle1.nc = tangent1;
+
+                triangle2.na = tangent2;
+                triangle2.nb = tangent2;
+                triangle2.nc = tangent2;
+
+                triangles.push(triangle1);
+                triangles.push(triangle2);
+            }
+        }
+
+        let smoothList = [];
+
+        function smoothVertice(vertice, triIndex){
+            smoothList.push(vertice)
+
+            let similarVertices = []
+
+            for (let i = 0; i < triangles.length; i++){
+                if(Vector3.subtract(triangles[i].a, vertice).length() < 0.01){
+                    similarVertices.push({ triIndex: i, normal: triangles[i].na, normalName: "na" })
+                }
+
+                if(Vector3.subtract(triangles[i].b, vertice).length() < 0.01){
+                    similarVertices.push({ triIndex: i, normal: triangles[i].nb, normalName: "nb" })
+                }
+
+                if(Vector3.subtract(triangles[i].c, vertice).length() < 0.01){
+                    similarVertices.push({ triIndex: i, normal: triangles[i].nc, normalName: "nc" })
                 }
             }
 
-            configureQuadUVs("ceiling")
-            configureQuadUVs("back_wall")
-            configureQuadUVs("floor")
-            configureQuadUVs("front_wall")
-            configureQuadUVs("left_wall")
-            configureQuadUVs("light")
-            configureQuadUVs("right_wall")
-            configureQuadUVs("short_box")
-            configureQuadUVs("tall_box")
+            if(similarVertices.length > 0){
+                let averageNormal = new Vector3(0, 0, 0);
 
-            await GameEngine.Renderer.SetMaterials(cornellBox.materials, true)
-            await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true, true, true)
-        })();
+                for(let similarVertice of similarVertices){
+                    averageNormal.add(similarVertice.normal)
+                }
+
+                averageNormal.divideScalar(similarVertices.length)
+                averageNormal.normalize()
+
+                for(let similarVertice of similarVertices){
+                    triangles[similarVertice.triIndex][normalName]
+                }
+            }
+        };
+
+        for (let i = 0; i < triangles.length; i++) {
+            if(!smoothList.includes(triangles[i].a)) smoothVertice(triangles[i].a, i)
+            if(!smoothList.includes(triangles[i].b)) smoothVertice(triangles[i].b, i)
+            if(!smoothList.includes(triangles[i].c)) smoothVertice(triangles[i].c, i)
+        }
+
+        await GameEngine.Renderer.SetMaterials({ default: material }, true)
+        await GameEngine.Renderer.SetTriangles(triangles, true, true, true)
+    })();
 
     function readImageFile(url) {
         return new Promise((resolve, reject) => {
@@ -442,15 +512,6 @@
                     canvas.width = image.width;
                     canvas.height = image.height;
                     context.drawImage(image, 0, 0, image.width, image.height);
-
-                    /*const rawPixels = Array.from(context.getImageData(0, 0, image.width, image.height).data);
-
-                    resolve({
-                        resolution: [image.width, image.height],
-                        bitmap: rawPixels.map((v) => Math.min(Math.max(v / 255.0, 0), 1)),
-                    })*/
-
-                    //const rawPixels = context.getImageData(0, 0, image.width, image.height).data;
 
                     resolve({
                         resolution: new Vector2(image.width, image.height),
@@ -477,44 +538,6 @@
 
         return pixels;
     }
-
-    /*let flower = OBJParser(await (await fetch("./flower.obj")).text(), {
-        "flower": await (await fetch("./flower.mtl")).text()
-    })
-
-    await GameEngine.Renderer.SetMaterials(flower.materials)
-    await GameEngine.Renderer.SetTriangles(flower.triangles, true)*/
-
-    /*let triangle1 = new Triangle()
-    triangle1.a = new Vector3(-1.0, -1.0, 5.0)
-    triangle1.b = new Vector3(1.0, -1.0, 5.0)
-    triangle1.c = new Vector3(0.0, 1.0, 5.0)
-
-    let triangle2 = new Triangle()
-    triangle2.a = new Vector3(-3.0, -5.0, 3.0),
-    triangle2.b = new Vector3(0.0, -5.0, -3.0),
-    triangle2.c = new Vector3(3.0, -5.0, 3.0),
-
-    await GameEngine.Renderer.SetTriangles([triangle1, triangle2])*/
-
-    /*const sampleRate = GameEngine.Audio.audioContext.sampleRate;
-    const duration = 1; // Duration of the rocket launch
-    const startFrequency = 500; // Initial frequency
-    const endFrequency = 2000; // Final frequency
-    const numSamples = Math.floor(sampleRate * duration);
-    const audioBuffer = GameEngine.Audio.CreateAudioBuffer(numSamples, 1);
-    const channelData = audioBuffer.getChannelData(0);
-
-    for (let i = 0; i < numSamples; i++) {
-        const t = i / sampleRate;
-
-        const currentFrequency = startFrequency + (endFrequency - startFrequency) * (i / numSamples);
-        const amplitude = 0.3 * Math.exp(-2 * (i / numSamples - 0.75) ** 2);
-
-        channelData[i] = amplitude * Math.sin(2 * Math.PI * currentFrequency * t);
-    }
-
-    await GameEngine.Audio.PlaySound(audioBuffer, [0, 0, -1], [0, 1, 1])*/
 </script>
 
 </html>

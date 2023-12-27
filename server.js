@@ -26,7 +26,7 @@ function mapInput(input){
     inputParts.shift()
 
     if(input == "/"){
-        output = "/examples/including-the-module.html"
+        output = "/examples/2dGrid.html"
     }
 
     if(inputParts[0] == "maps"){
