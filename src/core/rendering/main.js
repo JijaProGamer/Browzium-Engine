@@ -610,7 +610,7 @@ class RenderingManager {
                 width: resolution.x,
                 height: resolution.y,
                 bitmap: material.diffuseTexture.bitmap,
-                material
+                material,
             })
         }
 
@@ -678,16 +678,17 @@ class RenderingManager {
                         ]
                     )
                 } else {
+                    console.log(texture.bitmap.buffer || texture.bitmap)
                     this.device.queue.writeTexture(
                         {
                             mipLevel: 0,
-                            //origin: start,
+                            origin: [texture.x, texture.y],
                             texture: this.textureAtlas
                         },
                         texture.bitmap.buffer | texture.bitmap,
                         {
                             bytesPerRow: 4 * 2 * texture.width,
-                            //rowsPerImage: texture.height
+                            rowsPerImage: texture.height
                         },
                         [
                             texture.width,
@@ -894,7 +895,7 @@ class RenderingManager {
         let branches = []*/
 
         let octreeSize = BVHTree.calculateTreeSize(triangleArray)
-        let octree = new BVHTree(octreeSize.minPosition, octreeSize.maxPosition, triangleArray)
+        let octree = new BVHTree(octreeSize.minPosition, octreeSize.maxPosition, triangleArray, triangleArray)
 
         let branches = []
         function getBranches(leaf) {

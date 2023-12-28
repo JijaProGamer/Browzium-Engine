@@ -26,7 +26,7 @@ class BVHTree {
 
     objects = [];
 
-    constructor(minPosition, maxPosition, triangleArray) {
+    constructor(minPosition, maxPosition, triangleArray, originalTriangleArray) {
         this.minPosition = minPosition;
         this.maxPosition = maxPosition;
 
@@ -34,11 +34,11 @@ class BVHTree {
             let triangle = triangleArray[triangleIndex];
 
             if (BVHTree.triangleIntersectsLeaf(triangle, minPosition, maxPosition)) {
-                this.objects.push(triangleIndex)
+                this.objects.push(originalTriangleArray.indexOf(triangle))
 
                 if (this.objects.length > 8) {
                     this.objects = []
-                    this.subdivide(triangleArray);
+                    this.subdivide(triangleArray, originalTriangleArray);
 
                     break;
                 }
@@ -46,20 +46,66 @@ class BVHTree {
         }
     }
 
-    subdivide(triangleArray) {
+    subdivide(triangleArray, originalTriangleArray) {
         let SAHResults = []
 
         for (let axis = 0; axis < 3; axis++) {
-            for (let distance = 0; distance <= 1; distance += 0.05) {
+            for (let distance = 0; distance <= 1; distance += 0.1) {
                 SAHResults.push(this.calculateDivisionSAH(axis, distance, triangleArray));
             }
         }
 
-        SAHResults.sort((a, b) => a.SAH - b.SAH)
+        /*let vertices = []
+
+        for (let tri of triangleArray) {
+            if (!vertices.includes(tri.a)) vertices.push(tri.a);
+            if (!vertices.includes(tri.b)) vertices.push(tri.b);
+            if (!vertices.includes(tri.c)) vertices.push(tri.c);
+        }
+
+        for (let vertice1 of vertices) {
+            for (let vertice2 of vertices) {
+                for (let vertice3 of vertices) {
+                    for (let vertice4 of vertices) {
+                        let child1 = {
+                            minPosition: vertice1,
+                            maxPosition: vertice2,
+                            children: []
+                        }
+
+                        let child2 = {
+                            minPosition: vertice3,
+                            maxPosition: vertice4,
+                            children: []
+                        }
+
+                        for (let triangleIndex = 0; triangleIndex < triangleArray.length; triangleIndex++) {
+                            let triangle = triangleArray[triangleIndex];
+
+                            if (BVHTree.triangleIntersectsLeaf(triangle, child1.minPosition, child1.maxPosition)) {
+                                child1.children.push(triangle)
+                            }
+
+                            if (BVHTree.triangleIntersectsLeaf(triangle, child2.minPosition, child2.maxPosition)) {
+                                child2.children.push(triangle)
+                            }
+                        }
+
+                        SAHResults.push({
+                            SAH: this.SAH(1, 2, child1, child2, this),
+                            child1, child2
+                        });
+                    }
+                }
+            }
+        }*/
+
+        SAHResults = SAHResults.filter(v => v.SAH > 1).sort((a, b) => a.SAH - b.SAH)
+        console.log(SAHResults)
         let bestResult = SAHResults[0]
 
-        this.child1 = new BVHTree(bestResult.child1.minPosition, bestResult.child1.maxPosition, triangleArray);
-        this.child2 = new BVHTree(bestResult.child2.minPosition, bestResult.child2.maxPosition, triangleArray);
+        this.child1 = new BVHTree(bestResult.child1.minPosition, bestResult.child1.maxPosition, bestResult.child1.children, originalTriangleArray);
+        this.child2 = new BVHTree(bestResult.child2.minPosition, bestResult.child2.maxPosition, bestResult.child2.children, originalTriangleArray);
     }
 
     calculateDivisionSAH(axis, distance, triangleArray) {
@@ -111,8 +157,8 @@ class BVHTree {
     }
 
     static triangleIntersectsLeaf(triangle, min, max) {
-        return BVHTree.isPointInsideBox(triangle.a, min, max) ||
-            BVHTree.isPointInsideBox(triangle.b, min, max) ||
+        return BVHTree.isPointInsideBox(triangle.a, min, max) &&
+            BVHTree.isPointInsideBox(triangle.b, min, max) &&
             BVHTree.isPointInsideBox(triangle.c, min, max)
     }
 

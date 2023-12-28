@@ -10,8 +10,7 @@ fn NoHit(
     let White = vec3<f32>(0.8, 0.8, 0.8);
     let Blue = vec3<f32>(0.15, 0.3, 0.9);
 
-    return vec3<f32>(0.1, 0.1, 0.1);
-    //return (0.6-a) * White + (a + 0.4) * Blue;
+    return (0.6-a) * White + (a + 0.4) * Blue;
 }
 
 struct BRDFDirectionOutput {
@@ -350,7 +349,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel
     return output;
 }*/
 
-/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, pixel: vec2<f32>, rawPixelHash: f32) -> Pixel {
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     if (!hit_octree(start, direction, inputTreeParts[0])) {

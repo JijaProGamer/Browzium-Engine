@@ -202,7 +202,7 @@
 
     // Camera position
 
-    let cameraPosition = new Vector3(0, 5, -2);
+    let cameraPosition = new Vector3(0, 25, 0);
 
     let cameraSpeed = 0.05;
     let moveModes = { up: false, down: false, right: false, left: false, forward: false, back: false }
@@ -383,19 +383,32 @@
     }, 1000 / 50)
 
     let densityArray = []
-    let densityResolution = 16;
-
+    let densityResolution = 32;
     let mapScale = 1;
-    let scale = 5;
-    let frequency = 0.1;
 
-    noise.seed(Math.random());
+    let scale = 50;
+    let frequency = 0.01;
+    let octaves = 16;
+
+    noise.seed(69420);
 
     for (let x = 0; x <= densityResolution; x++) {
         densityArray[x] = []
         for (let y = 0; y <= densityResolution; y++) {
-            densityArray[x][y] = noise.simplex2(x * frequency, y * frequency) * scale;
-            //densityArray[x][y] = (Math.sin(x * frequency) + Math.sin(y * frequency)) / 2 * scale;
+            let value = 0;
+
+            let amplitude = 1;
+            let ifrequency = frequency;
+            let persistence = 0.5;
+            let octaves = 4;
+
+            for (let i = 0; i < octaves; i++) {
+                value += amplitude * (noise.simplex2(x * ifrequency, y * ifrequency) + 1) / 2;
+                ifrequency *= 2;
+                amplitude *= persistence;
+            }
+
+            densityArray[x][y] = (value / 2) * scale;
         }
     }
 
@@ -406,23 +419,18 @@
 
         let material = new Material()
         let materialGlow = new Material()
-        let texture = await readImageFile("/maps/waifu.jpg");
-
-        material.diffuse = new Vector3(1, 1, 1);
-        material.diffuseTexture.resolution = texture.resolution;
-        material.diffuseTexture.bitmap = texture.bitmap;
-
-        materialGlow.diffuse = new Vector3(1, 1, 1);
-        materialGlow.emittance = 1;
-        materialGlow.diffuseTexture.resolution = texture.resolution;
-        materialGlow.diffuseTexture.bitmap = texture.bitmap;
+        //let texture = await readImageFile("/maps/waifu.jpg");
+        let texture = {
+            bitmap: new Float32Array(densityResolution * densityResolution * 4),
+            resolution: new Vector2(densityResolution, densityResolution)
+        }
 
         for (let y = 0; y < densityResolution; y++) {
             for (let x = 0; x < densityResolution; x++) {
                 const a = new Vector3(x * mapScale, densityArray[x][y], y * mapScale);
                 const b = new Vector3((x + 1) * mapScale, densityArray[x + 1][y], y * mapScale);
-                const c = new Vector3(x * mapScale, densityArray[x][y + 1] * mapScale, (y + 1) * mapScale);
-                const d = new Vector3((x + 1) * mapScale, densityArray[x + 1][y + 1] * mapScale, (y + 1) * mapScale);
+                const c = new Vector3(x * mapScale, densityArray[x][y + 1], (y + 1) * mapScale);
+                const d = new Vector3((x + 1) * mapScale, densityArray[x + 1][y + 1], (y + 1) * mapScale);
 
                 const triangle1 = new Triangle();
                 const triangle2 = new Triangle();
@@ -435,18 +443,39 @@
                 triangle2.b = d;
                 triangle2.c = c;
 
-                if(
-                    x > (densityResolution / 2 - 10/100 * densityResolution) &&
-                    x < (densityResolution / 2 + 10/100 * densityResolution) &&
-                    y > (densityResolution / 2 - 10/100 * densityResolution) &&
-                    y < (densityResolution / 2 + 10/100 * densityResolution)
-                ){
-                    triangle2.material = "glow";
-                    triangle1.material = "glow";
-                } else {
-                    triangle2.material = "default";
-                    triangle1.material = "default";
+                let averageHeight = (
+                    densityArray[x][y] +
+                    densityArray[x + 1][y] +
+                    densityArray[x][y + 1] +
+                    densityArray[x + 1][y + 1]
+                ) / 4 / scale
+
+                let index = (y * densityResolution + x) * 4;
+                let color = new Vector3(0, 0, 0);
+
+                if(averageHeight < 0.25){
+                    color.x = 0
+                    color.y = 0
+                    color.z = 1
+                } else if(averageHeight < 0.5){
+                    color.x = 0.2
+                    color.y = 0.8
+                    color.z = 0.1
+                } else if(averageHeight < 0.7){
+                    color.x = 0.5
+                    color.y = 0.5
+                    color.z = 0.5
+                } else if(averageHeight <= 1){
+                    color.x = 0.8
+                    color.y = 0.8
+                    color.z = 0.8
                 }
+
+                texture.bitmap[index + 0] = color.x;
+                texture.bitmap[index + 1] = color.y;
+                texture.bitmap[index + 2] = color.z;
+
+                texture.bitmap[index + 3] = 1;
 
                 let ab1 = Vector3.subtract(b, a);
                 let ac1 = Vector3.subtract(c, a);
@@ -525,9 +554,39 @@
             if (!smoothList.includes(triangles[i].c)) smoothVertice(triangles[i].c, i)
         }
 
-        await GameEngine.Renderer.SetMaterials({ default: material, glow: materialGlow}, true)
+        console.log(texture.bitmap)
+        texture.bitmap = createCanvasFromTexture(texture)
+
+        material.diffuse = new Vector3(1, 1, 1);
+        material.diffuseTexture.resolution = texture.resolution;
+        material.diffuseTexture.bitmap = texture.bitmap;
+
+        materialGlow.diffuse = new Vector3(1, 1, 1);
+        materialGlow.emittance = 1;
+        materialGlow.diffuseTexture.resolution = texture.resolution;
+        materialGlow.diffuseTexture.bitmap = texture.bitmap;
+
+        await GameEngine.Renderer.SetMaterials({ default: material, glow: materialGlow }, true)
         await GameEngine.Renderer.SetTriangles(triangles, true, true, true)
     })();
+
+    function createCanvasFromTexture(texture) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        canvas.width = texture.resolution.x;
+        canvas.height = texture.resolution.y;
+
+        const imageData = context.createImageData(canvas.width, canvas.height);
+        const data = imageData.data;
+        for (let i = 0; i < texture.bitmap.length; i++) {
+            data[i] = texture.bitmap[i] * 255;
+        }
+
+        context.putImageData(imageData, 0, 0);
+
+        return canvas;
+    }
 
     function readImageFile(url) {
         return new Promise((resolve, reject) => {
