@@ -115,7 +115,7 @@
 
     GameEngine.Renderer.focalLength = 2.5;
     GameEngine.Renderer.apertureSize = 0;
-    
+
     GameEngine.Renderer.loadDenoiser("atrous");
     GameEngine.Renderer.denoisersBuilt.atrous.levels = 5;
 
@@ -205,7 +205,7 @@
 
     // Camera position
 
-    let cameraPosition = new Vector3(0, 25, 0);
+    let cameraPosition = new Vector3(0, 5, 0);
 
     let cameraSpeed = 0.05;
     let moveModes = { up: false, down: false, right: false, left: false, forward: false, back: false }
@@ -386,32 +386,33 @@
     }, 1000 / 50)
 
     let densityArray = []
-    let densityResolution = 15;
+    let densityResolution = 5;
     let mapScale = 1;
 
-    let scale = 30;
-    let frequency = 0.02;
+    let frequency = 0.1;
     let octaves = 4;
 
     noise.seed(512);
 
     for (let x = 0; x <= densityResolution; x++) {
-        densityArray[x] = []
         for (let y = 0; y <= densityResolution; y++) {
-            let value = 0;
+            for (let z = 0; z <= densityResolution; z++) {
+                let index = z * densityResolution * densityResolution + y * densityResolution + x;
+                let value = 0;
 
-            let amplitude = 1;
-            let ifrequency = frequency;
-            let persistence = 0.5;
-            let octaves = 4;
+                let amplitude = 1;
+                let ifrequency = frequency;
+                let persistence = 0.5;
+                let octaves = 4;
 
-            for (let i = 0; i < octaves; i++) {
-                value += amplitude * (noise.simplex2(x * ifrequency, y * ifrequency) + 1) / 2;
-                ifrequency *= 2;
-                amplitude *= persistence;
+                for (let i = 0; i < octaves; i++) {
+                    value += amplitude * (noise.simplex3(x * ifrequency, y * ifrequency, z * ifrequency) + 1) / 2;
+                    ifrequency *= 2;
+                    amplitude *= persistence;
+                }
+
+                densityArray[index] = value / 2;
             }
-
-            densityArray[x][y] = (value / 2) * scale;
         }
     }
 
@@ -422,156 +423,205 @@
 
         let material = new Material()
         let materialGlow = new Material()
-        //let texture = await readImageFile("/maps/waifu.jpg");
-        let texture = {
-            bitmap: new Float32Array(densityResolution * densityResolution * 4),
-            resolution: new Vector2(densityResolution, densityResolution)
-        }
+        let texture = await readImageFile("/maps/waifu.jpg");
 
-        for (let y = 0; y < densityResolution; y++) {
-            for (let x = 0; x < densityResolution; x++) {
-                const a = new Vector3(x * mapScale, densityArray[x][y], y * mapScale);
-                const b = new Vector3((x + 1) * mapScale, densityArray[x + 1][y], y * mapScale);
-                const c = new Vector3(x * mapScale, densityArray[x][y + 1], (y + 1) * mapScale);
-                const d = new Vector3((x + 1) * mapScale, densityArray[x + 1][y + 1], (y + 1) * mapScale);
-
-                const triangle1 = new Triangle();
-                const triangle2 = new Triangle();
-
-                triangle1.a = a;
-                triangle1.b = b;
-                triangle1.c = c;
-
-                triangle2.a = b;
-                triangle2.b = d;
-                triangle2.c = c;
-
-                let averageHeight = (
-                    densityArray[x][y] +
-                    densityArray[x + 1][y] +
-                    densityArray[x][y + 1] +
-                    densityArray[x + 1][y + 1]
-                ) / 4 / scale
-
-                let index = (y * densityResolution + x) * 4;
-                let color = new Vector3(0, 0, 0);
-
-                if(averageHeight < 0.25){
-                    color.x = 0
-                    color.y = 0
-                    color.z = 1
-                } else if(averageHeight < 0.5){
-                    color.x = 0.2
-                    color.y = 0.8
-                    color.z = 0.1
-                } else if(averageHeight < 0.7){
-                    color.x = 0.5
-                    color.y = 0.5
-                    color.z = 0.5
-                } else if(averageHeight <= 1){
-                    color.x = 0.8
-                    color.y = 0.8
-                    color.z = 0.8
-                }
-
-                texture.bitmap[index + 0] = color.x;
-                texture.bitmap[index + 1] = color.y;
-                texture.bitmap[index + 2] = color.z;
-
-                texture.bitmap[index + 3] = 1;
-
-                let ab1 = Vector3.subtract(b, a);
-                let ac1 = Vector3.subtract(c, a);
-                let tangent1 = ab1.cross(ac1).normalize();
-
-                let ab2 = Vector3.subtract(d, b);
-                let ac2 = Vector3.subtract(c, b);
-                let tangent2 = ab2.cross(ac2).normalize();
-
-                triangle1.na = tangent1;
-                triangle1.nb = tangent1;
-                triangle1.nc = tangent1;
-
-                triangle2.na = tangent2;
-                triangle2.nb = tangent2;
-                triangle2.nc = tangent2;
-
-                triangles.push(triangle1);
-                triangles.push(triangle2);
-            }
-        }
-
-        for (let triangleIndex = 0; triangleIndex < triangles.length; triangleIndex += 2) {
-            const x = Math.floor(triangleIndex / 2) % densityResolution;
-            const y = Math.floor(Math.floor(triangleIndex / 2) / densityResolution);
-
-            triangles[triangleIndex].uva = new Vector2(x / densityResolution, y / densityResolution);
-            triangles[triangleIndex].uvb = new Vector2((x + 1) / densityResolution, y / densityResolution);
-            triangles[triangleIndex].uvc = new Vector2(x / densityResolution, (y + 1) / densityResolution);
-
-            triangles[triangleIndex + 1].uva = new Vector2((x + 1) / densityResolution, y / densityResolution);
-            triangles[triangleIndex + 1].uvb = new Vector2((x + 1) / densityResolution, (y + 1) / densityResolution);
-            triangles[triangleIndex + 1].uvc = new Vector2(x / densityResolution, (y + 1) / densityResolution);
-        }
-
-        let smoothList = [];
-
-        function smoothVertice(vertice, triIndex) {
-            smoothList.push(vertice)
-
-            let similarVertices = []
-
-            for (let i = 0; i < triangles.length; i++) {
-                if (Vector3.subtract(triangles[i].a, vertice).length() < 0.01) {
-                    similarVertices.push({ triIndex: i, normal: triangles[i].na, normalName: "na" })
-                }
-
-                if (Vector3.subtract(triangles[i].b, vertice).length() < 0.01) {
-                    similarVertices.push({ triIndex: i, normal: triangles[i].nb, normalName: "nb" })
-                }
-
-                if (Vector3.subtract(triangles[i].c, vertice).length() < 0.01) {
-                    similarVertices.push({ triIndex: i, normal: triangles[i].nc, normalName: "nc" })
+        for (let x = 0; x <= densityResolution; x++) {
+            for (let y = 0; y <= densityResolution; y++) {
+                for (let z = 0; z <= densityResolution; z++) {
+                    if (doesBlockExist(x, y, z)) {
+                        triangles.push(...createCubeTriangles(x, y, z))
+                    }
                 }
             }
-
-            if (similarVertices.length > 0) {
-                let averageNormal = new Vector3(0, 0, 0);
-
-                for (let similarVertice of similarVertices) {
-                    averageNormal.add(similarVertice.normal)
-                }
-
-                averageNormal.divideScalar(similarVertices.length)
-                averageNormal.normalize()
-
-                for (let similarVertice of similarVertices) {
-                    triangles[similarVertice.triIndex][similarVertice.normalName] = averageNormal;
-                }
-            }
-        };
-
-        for (let i = 0; i < triangles.length; i++) {
-            if (!smoothList.includes(triangles[i].a)) smoothVertice(triangles[i].a, i)
-            if (!smoothList.includes(triangles[i].b)) smoothVertice(triangles[i].b, i)
-            if (!smoothList.includes(triangles[i].c)) smoothVertice(triangles[i].c, i)
         }
 
-        console.log(texture.bitmap)
         texture.bitmap = createCanvasFromTexture(texture)
 
-        material.diffuse = new Vector3(1, 1, 1);
-        material.diffuseTexture.resolution = texture.resolution;
-        material.diffuseTexture.bitmap = texture.bitmap;
+        material.diffuse = new Vector3(1, 0, 0);
+        //material.diffuseTexture.resolution = texture.resolution;
+        //material.diffuseTexture.bitmap = texture.bitmap;
 
-        materialGlow.diffuse = new Vector3(1, 1, 1);
-        materialGlow.emittance = 1;
-        materialGlow.diffuseTexture.resolution = texture.resolution;
-        materialGlow.diffuseTexture.bitmap = texture.bitmap;
+        console.log(material)
 
-        await GameEngine.Renderer.SetMaterials({ default: material, glow: materialGlow }, true)
+        await GameEngine.Renderer.SetMaterials({ default: material }, true)
         await GameEngine.Renderer.SetTriangles(triangles, true, true, true)
     })();
+
+    function doesBlockExist(x, y, z) {
+        let index = z * densityResolution * densityResolution + y * densityResolution + x;
+        let value = densityArray[index];
+
+        return value > 0.5 || z > densityResolution || x > densityResolution || y > densityResolution;
+    }
+
+    function doesNeighborExist(x, y, z, face) {
+        return doesBlockExist(x + face.x, y + face.y, z + face.z)
+    }
+
+    const faces = [
+        new Vector3(0, 1, 0),
+        new Vector3(0, -1, 0),
+        new Vector3(1, 0, 0),
+        new Vector3(-1, 0, 0),
+        new Vector3(0, 0, 1),
+        new Vector3(0, 0, -1)
+    ];
+
+    const facesVerticees = [
+        [0, 1, 2, 0, 2, 3],
+        [4, 5, 6, 4, 6, 7],
+        [0, 4, 7, 0, 7, 3],
+        [1, 5, 6, 1, 6, 2],
+        [0, 1, 5, 0, 5, 4],
+        [2, 3, 7, 2, 7, 6],
+    ];
+
+    function makeTriangle(a, b, c) {
+        const triangle = new Triangle();
+
+        triangle.a = a;
+        triangle.b = b;
+        triangle.c = c;
+
+        let ab = Vector3.subtract(b, a);
+        let ac = Vector3.subtract(c, a);
+        let tangent = ab.cross(ac).normalize();
+
+        triangle.na = tangent;
+        triangle.nb = tangent;
+        triangle.nc = tangent;
+
+        triangle.uva = new Vector2(0, 0);
+        triangle.uvb = new Vector2(1, 1);
+        triangle.uvc = new Vector2(0, 1);
+
+        triangle.material = "default";
+
+        return triangle;
+    }
+
+    function makeFace(index, face, vertices) {
+        let tri1 = makeTriangle(vertices[facesVerticees[index][0]], vertices[facesVerticees[index][1]], vertices[facesVerticees[index][2]])
+        let tri2 = makeTriangle(vertices[facesVerticees[index][3]], vertices[facesVerticees[index][4]], vertices[facesVerticees[index][5]])
+
+        return [tri1, tri2]
+    }
+
+    function createCubeTriangles(x, y, z) {
+        let size = 1;
+
+        const vertices = [
+            new Vector3(x, y, z),
+            new Vector3(x + size, y, z),
+            new Vector3(x + size, y + size, z),
+            new Vector3(x, y + size, z),
+            new Vector3(x, y, z + size),
+            new Vector3(x + size, y, z + size),
+            new Vector3(x + size, y + size, z + size),
+            new Vector3(x, y + size, z + size),
+        ];
+
+        let triangles = [];
+
+        for (const [index, face] of faces.entries()) {
+            if(doesNeighborExist(x, y, z, face)){ continue }
+            triangles.push(...makeFace(index, face, vertices))
+        }
+
+        return triangles;
+    }
+
+
+
+    /*function doesNeighborExist(x, y, z, face) {
+        let neighborX = x;
+        let neighborY = y;
+        let neighborZ = z;
+
+        if (face === 0) {
+            neighborX += 1;
+        } else if (face === 1) {
+            neighborX -= 1;
+        } else if (face === 2) {
+            neighborY += 1;
+        } else if (face === 3) {
+            neighborY -= 1;
+        } else if (face === 4) {
+            neighborZ += 1;
+        } else if (face === 5) {
+            neighborZ -= 1;
+        }
+
+        return doesBlockExist(neighborX, neighborY, neighborZ);
+    }
+
+    function createCubeTriangles(x, y, z) {
+        let size = 1;
+
+        const vertices = [
+            new Vector3(x, y, z),
+            new Vector3(x + size, y, z),
+            new Vector3(x + size, y + size, z),
+            new Vector3(x, y + size, z),
+            new Vector3(x, y, z + size),
+            new Vector3(x + size, y, z + size),
+            new Vector3(x + size, y + size, z + size),
+            new Vector3(x, y + size, z + size),
+        ];
+
+        const faces = [
+            [0, 1, 2],
+            [0, 2, 3],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 4, 7],
+            [0, 7, 3],
+            [1, 5, 6],
+            [1, 6, 2],
+            [0, 1, 5],
+            [0, 5, 4],
+            [2, 6, 7],
+            [2, 7, 3],
+        ];
+
+        let triangles = []
+
+        let faceIndex = 0
+        for (const face of faces) {
+            if (doesNeighborExist(x, y, z, Math.floor(faceIndex / 2))) continue;
+
+            const triangle = new Triangle();
+
+            triangle.a = vertices[face[0]];
+            triangle.b = vertices[face[1]];
+            triangle.c = vertices[face[2]];
+
+            let ab = Vector3.subtract(triangle.b, triangle.a);
+            let ac = Vector3.subtract(triangle.c, triangle.a);
+            let tangent = ab.cross(ac).normalize();
+
+            triangle.na = tangent;
+            triangle.nb = tangent;
+            triangle.nc = tangent;
+
+            if (faceIndex % 2 == 0) {
+                triangle.uva = new Vector2(0, 0);
+                triangle.uvb = new Vector2(1, 1);
+                triangle.uvc = new Vector2(0, 1);
+            } else {
+                triangle.uva = new Vector2(0, 0);
+                triangle.uvb = new Vector2(1, 0);
+                triangle.uvc = new Vector2(1, 1);
+            }
+
+            triangle.material = "default"
+
+            triangles.push(triangle);
+            faceIndex++;
+        }
+
+        return triangles;
+    }*/
 
     function createCanvasFromTexture(texture) {
         const canvas = document.createElement('canvas');

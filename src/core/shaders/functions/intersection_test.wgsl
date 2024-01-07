@@ -15,7 +15,7 @@ struct OctreeHitResult {
     treePart: TreePart,
 }
 
-const errorAmount = 0.0001;
+const errorAmount = 0.00001;
 
 fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var result: HitResult;

@@ -79,7 +79,9 @@ import Material from "./core/classes/Material.js";
 import OBJParser from "./utilities/scene/OBJParser.js"
 import parseMAT from "./utilities/scene/MATParser.js"
 
+import ColladaParser from "./utilities/scene/ColladaParser.js"
+
 export { 
     Vector2, Vector3, Vector4, Matrix, Quaternion, 
-    Triangle, OBJParser, parseMAT, Material
+    Triangle, OBJParser, parseMAT, ColladaParser , Material
 }

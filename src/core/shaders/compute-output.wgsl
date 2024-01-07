@@ -110,8 +110,12 @@ struct OutputTextureData {
 @group(1) @binding(1) var<storage, read> inputLightMap: InputLightData;
 @group(1) @binding(2) var<storage, read> inputMaterials: array<Material>;
 @group(1) @binding(3) var<storage, read> inputTreeParts: array<TreePart>;
+
 @group(1) @binding(4) var textureAtlas: texture_2d_array<f32>;
 @group(1) @binding(5) var textureAtlasSampler: sampler;
+
+@group(1) @binding(6) var worldTexture: texture_2d<f32>;
+@group(1) @binding(7) var worldTextureSampler: sampler;
 
 @group(2) @binding(0) var image_color_texture: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(1) var image_normal_texture: texture_storage_2d<rgba16float, write>;
@@ -257,7 +261,7 @@ struct OctreeHitResult {
     treePart: TreePart,
 }
 
-const errorAmount = 0.0001;
+const errorAmount = 0.00001;
 
 fn hit_triangle(tri: Triangle, ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
     var result: HitResult;
@@ -562,16 +566,28 @@ fn randomPointInCircle(seed: f32, position: vec3<f32>) -> Random3Vec3Output {
     return output;
 }
 
+fn uvOnWorldSphere(
+    direction: vec3<f32>, 
+    start: vec3<f32>
+) -> vec2<f32>{
+    let theta = atan2(direction.x, direction.z);
+    let phi = acos(direction.y);
+
+    let u = (theta + 3.141592653) / (2.0 * 3.141592653);
+    let v = phi / 3.141592653;
+
+    return vec2<f32>(u, v);
+}
+
 fn NoHit(
     direction: vec3<f32>, 
     start: vec3<f32>
 ) -> vec3<f32> {
-    let a = 0.5 * (direction.y + 1.0);
+    let UV = uvOnWorldSphere(direction, start);
+    return vec3<f32>(UV, 0);
 
-    let White = vec3<f32>(0.8, 0.8, 0.8);
-    let Blue = vec3<f32>(0.15, 0.3, 0.9);
-
-    return (0.6-a) * White + (a + 0.4) * Blue;
+    //var textureColor = textureSampleLevel(worldTexture, worldTextureSampler, UV, 1);
+    //return textureColor.rgb; // later return a too
 }
 
 struct BRDFDirectionOutput {
@@ -613,42 +629,6 @@ fn RandomPointOnTriangle(
     return vec4<f32>(x, y, z, hash);
 }
 
-/*fn CalculateDirect(
-    rayPosition: vec3<f32>,
-    rawPixelHash: f32,
-) -> DirectCalculationOutput {
-    var output: DirectCalculationOutput;
-
-    var pixelHash = rawPixelHash;
-    let triIndex = u32(floor(pixelHash * inputLightMap.triangle_count));
-    let tri = inputMap.triangles[u32(inputLightMap.triangles[triIndex])];
-
-    let lightSample = RandomPointOnTriangle(tri, pixelHash);
-    let lightPosition = lightSample.xyz;
-
-    let shadowRayDirection = normalize(lightPosition - rayPosition);
-    let shadowIntersection = get_ray_intersection(rayPosition, shadowRayDirection);
-
-    if (shadowIntersection.hit && shadowIntersection.object_id == tri.object_id) {
-        let material = inputMaterials[i32(tri.material_index)];
-
-        //let P = -dot(shadowRayDirection, shadowIntersection.normal) / dot(lightPosition - rayPosition, lightPosition - rayPosition);
-        //output.color = material.emittance * material.color * P * (dot(shadowRayDirection, shadowIntersection.normal) / 3.141592);
-
-        let cos_theta = dot(-shadowRayDirection, shadowIntersection.normal);
-        let brdf = (material.emittance * material.color) / 3.141592;
-        let color = brdf * cos_theta / (1 / (2 * 3.141592));
-
-        output.color =  color;
-        output.hit = shadowIntersection;
-    }
-
-    output.seed = lightSample.w;
-    output.direction = shadowRayDirection;
-
-    return output;
-}*/
-
 fn getColor(
     material: Material,
     intersection: HitResult,
@@ -671,6 +651,7 @@ fn getColor(
 
 fn CalculateDirect(
     rayPosition: vec3<f32>,
+    oldIntersection: HitResult,
     rawPixelHash: f32,
 ) -> DirectCalculationOutput {
     var output: DirectCalculationOutput;
@@ -699,11 +680,12 @@ fn CalculateDirect(
     }
 
     let lightSample = RandomPointOnTriangle(tri, pixelHash);
+    var hash = lightSample.w;
     //let lightSample = vec4<f32>((tri.a + tri.b + tri.c) / 3, pixelHash);
 
     let lightPosition = lightSample.xyz;
 
-    let shadowRayDirection = normalize(lightPosition - rayPosition);
+    var shadowRayDirection = normalize(lightPosition - rayPosition);
     //let shadowIntersection = get_light_ray_intersection(rayPosition, shadowRayDirection, tri.object_id);
     let shadowIntersection = get_ray_intersection(rayPosition, shadowRayDirection);
 
@@ -711,7 +693,7 @@ fn CalculateDirect(
         let material = inputMaterials[i32(tri.material_index)];
 
         let cos_theta = dot(-shadowRayDirection, shadowIntersection.normal);
-        let brdf = getColor(material, shadowIntersection).rgb / 3.141592;
+        let brdf = (getColor(material, shadowIntersection).rgb * material.emittance) / 3.141592;
         let color = brdf * cos_theta /  (1 / (2 * 3.141592));
         output.color = color;
 
@@ -719,7 +701,17 @@ fn CalculateDirect(
         output.wasHit = true;
     }
 
-    output.seed = lightSample.w;
+    /*if(!shadowIntersection.hit || shadowIntersection.object_id != tri.object_id){
+        var diffuseDirectionValue = randomPointInCircle(hash, rayPosition);
+        hash = diffuseDirectionValue.seed;
+
+        shadowRayDirection = normalize(diffuseDirectionValue.output - oldIntersection.normal);
+
+        output.color = NoHit(rayPosition, shadowRayDirection);
+        output.wasHit = true;
+    }*/
+
+    output.seed = hash;
     output.direction = shadowRayDirection;
 
     return output;
@@ -784,9 +776,119 @@ fn BRDFDirection(
     return output;
 }
 
+struct NEEStackElement {
+    albedo: vec3<f32>,
+    emittance: vec3<f32>,
+    intersection: HitResult,
+}
+
 const maxDepth: i32 = 4;
 
 fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel {
+    var output: Pixel;
+
+    var oldMaterial: Material;
+    var intersection: HitResult;
+    var realDirection = direction;
+    var realStart = start;
+
+    var pixelHash = rawPixelHash;
+    var hit_light = false;
+
+    var gatherDenoisingData = true;
+    var wasReflection = false;
+
+    var emittance: vec3<f32>;
+
+    var stackLength: i32;
+    var stack: array<NEEStackElement, maxDepth>;
+
+    for (var depth: i32 = 0; depth <= maxDepth; depth = depth + 1) {
+        if (!intersection.hit && depth > 0) {
+            break;
+        }
+
+        var stackElement: NEEStackElement;
+
+        intersection = get_ray_intersection(realStart, realDirection);
+        var material = intersection.material;
+
+        if(gatherDenoisingData){
+            if (!intersection.hit) { 
+                intersection.depth = 999999; 
+                intersection.normal = -realDirection; 
+                intersection.position = 99999.0 * realDirection;
+                material.color = NoHit(realDirection, realStart);
+                intersection.object_id = -1;
+            }
+
+            output.normal = intersection.normal;
+            output.depth = intersection.depth;
+            output.intersection = intersection.position;
+            output.object_id = intersection.object_id;
+            output.albedo = getColor(material, intersection).rgb;
+            gatherDenoisingData = false;
+
+            if(wasReflection){
+                output.albedo *= oldMaterial.color;
+            }
+        }
+
+        if (!intersection.hit) {
+            let emittance = NoHit(realDirection, realStart);
+
+            var stackElement: NEEStackElement;
+            stackElement.emittance = emittance;
+            stackElement.albedo = vec3<f32>(1, 1, 1);
+
+            stack[depth] = stackElement;
+            break;
+        }
+
+        let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
+        pixelHash = BRDFDirectionValue.outputHash;
+
+        var directIncoming = CalculateDirect(intersection.position, intersection, pixelHash);
+        var indirectIncoming = getColor(material, intersection).rgb * material.emittance;
+
+        let emittance = indirectIncoming + directIncoming.color;
+        pixelHash = directIncoming.seed;
+
+
+        stackElement.emittance = emittance;
+        stackElement.albedo = getColor(material, intersection).rgb;
+        stack[depth] = stackElement;
+
+        gatherDenoisingData = depth == 0 && (BRDFDirectionValue.isSpecular || BRDFDirectionValue.isTransparent);
+        wasReflection = gatherDenoisingData;
+
+        realStart = intersection.position;
+        realDirection = BRDFDirectionValue.direction;
+        oldMaterial = material;
+        stackLength = depth;
+    }
+
+    var incomingLight = vec3<f32>(0);
+    var rayColor = vec3<f32>(1);
+
+    for(var stackDepth: i32 = stackLength; stackDepth >= 0; stackDepth = stackDepth - 1){
+        let stackElement = stack[stackDepth];
+
+        incomingLight += stackElement.emittance * rayColor;
+        rayColor *= stackElement.albedo;
+
+        if(stackDepth == 1) {
+            incomingLight /= 2;
+        }
+    }
+
+    output.noisy_color = vec4<f32>(incomingLight, 0);
+    
+    output.seed = pixelHash;
+    return output;
+}
+
+/*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
 
     var oldMaterial: Material;
@@ -833,8 +935,6 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel
             if(wasReflection){
                 output.albedo *= oldMaterial.color;
             }
-
-
         }
 
         if (!intersection.hit) {
@@ -847,17 +947,17 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel
         }
 
         let BRDFDirectionValue = BRDFDirection(intersection, realDirection, pixelHash);
-        var reflected = (max(1 - material.emittance, 0) * getColor(material, intersection).rgb);
+        var reflected = /*max(1 - material.emittance, 0) **/ getColor(material, intersection).rgb;
         pixelHash = BRDFDirectionValue.outputHash;
 
-        //var directIncoming = CalculateDirect(intersection.position, pixelHash);
+        //var directIncoming = CalculateDirect(intersection.position, intersection, pixelHash);
         var indirectIncoming = getColor(material, intersection).rgb * material.emittance;
         //var weightIncoming = 1.0; 
         //if(depth == 1) {weightIncoming = 0.5;}
 
         emittance = indirectIncoming;
 
-        //emittance =  indirectIncoming + directIncoming.color;
+        //emittance =  weightIncoming * (indirectIncoming + directIncoming.color);
         //emittance = directIncoming.color;
         //pixelHash = directIncoming.seed;
 
@@ -866,20 +966,20 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel
 
         incomingLight += emittance * rayColor;
 
-        if(!gatherDenoisingData){
+        //if(!gatherDenoisingData){
             rayColor *= reflected;
-        }
+        //}
 
         realStart = intersection.position;
         realDirection = BRDFDirectionValue.direction;
         oldMaterial = material;
     }
 
-    output.noisy_color = vec4<f32>(rayColor + incomingLight, 0);
+    output.noisy_color = vec4<f32>(incomingLight, 0);
     
     output.seed = pixelHash;
     return output;
-}
+}*/
 
 /*fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel {
     var output: Pixel;
@@ -895,7 +995,7 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel
         return output;
     }
 
-    var directIncoming = CalculateDirect(intersection.position, rawPixelHash);
+    var directIncoming = CalculateDirect(intersection.position, intersection, rawPixelHash);
 
     if(directIncoming.wasHit){
         output.albedo = getColor(material, intersection).rgb * directIncoming.color; // dot(direction, directIncoming.direction);

@@ -3,8 +3,18 @@ const fs = require('fs');
 const path = require('path');
 
 const server = http.createServer((req, res) => {
-    const filePath = path.join(__dirname, mapInput(req.url));
+    if (req.url.startsWith('/tfjs') || req.url.startsWith('/tfjs-backend-webgpu')) {
+        // Handling requests for tfjs and tfjs-backend-webgpu modules
+        const modulePath = path.join(__dirname, 'node_modules', req.url);
+        serveFile(modulePath, res);
+    } else {
+        // Handling other requests
+        const filePath = path.join(__dirname, mapInput(req.url));
+        serveFile(filePath, res);
+    }
+});
 
+function serveFile(filePath, res) {
     fs.readFile(filePath, (err, data) => {
         if (err) {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -18,19 +28,19 @@ const server = http.createServer((req, res) => {
             res.end(data);
         }
     });
-});
+}
 
-function mapInput(input){
+function mapInput(input) {
     let output = input;
     let inputParts = input.split("/");
-    inputParts.shift()
+    inputParts.shift();
 
-    if(input == "/"){
-        output = "/examples/including-the-module.html"
+    if (input === "/") {
+        output = "/examples/including-the-module.html";
     }
 
-    if(inputParts[0] == "maps"){
-        output = `examples/${inputParts.join("/")}`
+    if (inputParts[0] === "maps") {
+        output = `examples/${inputParts.join("/")}`;
     }
 
     return output;

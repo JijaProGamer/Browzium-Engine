@@ -1,6 +1,3 @@
-import fileAudioManager from "./fileAudio.js"
-new fileAudioManager()
-
 class AudioManager {
     audioContext;
 

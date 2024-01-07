@@ -6,7 +6,7 @@ import BVHTree from "../classes/bvh";
 
 import ATrousDenoiser from "./denoiser/ATrous";
 import emptyDenoiser from "./denoiser/none";
-
+import TensorflowDenoiser from "./denoiser/tensorflow"
 
 let triangleStride = (3 * 4) + (3 * 4) + (2 * 4);
 let materialStride = 4 + 4 + 4 + 4;
@@ -84,7 +84,7 @@ class RenderingManager {
     tonemapMode = 1;
     gammaCorrect = true;
 
-    denoiser = "atrous"
+    denoiser = "none"
 
     frame = 0;
     staticFrames = 0;
@@ -113,6 +113,21 @@ class RenderingManager {
         this.opts = opts;
 
         this.Camera = Camera
+    }
+
+    async loadDenoiser(name){
+        let denoisersByName = {
+            "none": emptyDenoiser,
+            "atrous": ATrousDenoiser,
+            "tensorflow": TensorflowDenoiser,
+        }
+
+        this.denoisersBuilt[name] = new denoisersByName[name](this);
+        await this.denoisersBuilt[name].makePipelines()
+    }
+
+    unloadDenoiser(name){
+        delete this.denoisersBuilt[name];
     }
 
     #makeBindGroups() {
@@ -264,6 +279,14 @@ class RenderingManager {
                 {
                     binding: 5,
                     resource: this.textureAtlasSampler,
+                },
+                {
+                    binding: 6,
+                    resource: this.worldTexture.createView(),
+                },
+                {
+                    binding: 7,
+                    resource: this.worldTextureSampler,
                 }
             ],
         });
@@ -387,12 +410,21 @@ class RenderingManager {
                 {
                     binding: 5,
                     visibility: GPUShaderStage.COMPUTE,
-                    sampler: {
-                        //type: "filtering",
-                        //filtering: "linear",
-                        //addressingMode: "clamp-to-edge",
-                        //compare: "never",
-                    },
+                    sampler: {},
+                },
+                {
+                    binding: 6,
+                    visibility: GPUShaderStage.COMPUTE,
+                    texture: {
+                        format: "rgba16float",
+                        multisampled: false,
+                        viewDimension: "2d",
+                    }
+                },
+                {
+                    binding: 7,
+                    visibility: GPUShaderStage.COMPUTE,
+                    sampler: {},
                 }
             ],
         });
@@ -619,6 +651,73 @@ class RenderingManager {
         this.texturesContained = textures
     }
 
+    makeWorldTexture(resolution){
+        this.worldTextureResolution = resolution;
+        
+        this.worldTexture = this.device.createTexture({
+            dimension: "2d",
+            format: "rgba16float", // might decrease later
+            label: "Browzium Engine Texture Atlas",
+            mipLevelCount: 1, // will increase later
+            sampleCount: 1, // idk what this is
+            size: { width: resolution.x, height: resolution.y, depthOrArrayLayers: 1 },
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+        })
+
+        this.worldTextureSampler = this.device.createSampler({
+            addressModeU: "clamp-to-edge",
+            addressModeV: "clamp-to-edge",
+            addressModeW: "clamp-to-edge",
+            label: "Browzium Engine Texture Atlas Sampler",
+
+            magFilter: "linear", // Will be user costumizable
+            minFilter: "linear", // Will be user costumizable
+            mipmapFilter: "nearest", // Will be user costumizable
+        })
+    }
+
+    applyWorldTexture(texture){
+        if (
+            texture instanceof ImageBitmap ||
+            texture instanceof HTMLVideoElement ||
+            texture instanceof VideoFrame ||
+            texture instanceof HTMLCanvasElement ||
+            texture instanceof OffscreenCanvas
+        ) {
+            this.device.queue.copyExternalImageToTexture(
+                {
+                    source: texture
+                },
+                {
+                    mipLevel: 0,
+                    texture: this.worldTexture
+                },
+                [
+                    this.worldTextureResolution.x,
+                    this.worldTextureResolution.y,
+                    1                
+                ]
+            )
+        } else {
+            this.device.queue.writeTexture(
+                {
+                    mipLevel: 0,
+                    texture: this.worldTexture
+                },
+                texture.data.buffer || texture.data,
+                {
+                    bytesPerRow: 4 * 2 * this.worldTextureResolution.x,
+                    rowsPerImage: this.worldTextureResolution.y
+                },
+                [
+                    this.worldTextureResolution.x,
+                    this.worldTextureResolution.y,
+                    1
+                ]
+            )
+        }
+    }
+
     #makeTextureAtlas() {
         //let limit2D = Math.floor(this.device.limits.maxTextureDimension2D / 2)
         //let limit3D = this.device.limits.maxTextureArrayLayers
@@ -678,14 +777,13 @@ class RenderingManager {
                         ]
                     )
                 } else {
-                    console.log(texture.bitmap.buffer || texture.bitmap)
                     this.device.queue.writeTexture(
                         {
                             mipLevel: 0,
                             origin: [texture.x, texture.y],
                             texture: this.textureAtlas
                         },
-                        texture.bitmap.buffer | texture.bitmap,
+                        texture.bitmap.buffer || texture.bitmap,
                         {
                             bytesPerRow: 4 * 2 * texture.width,
                             rowsPerImage: texture.height
@@ -1187,20 +1285,15 @@ class RenderingManager {
         this.#computeAtlasFormat([])
         this.#makeTextureAtlas(1)
 
+        this.makeWorldTexture(new Vector2(1, 1))
+
         this.#SetOctree([], false);
         this.SetMaterials([], false);
         this.SetTriangles([], false, true, false);
         this.#makePipelines();
         this.#makeBindGroups();
 
-        this.denoisersBuilt["atrous"] = new ATrousDenoiser(this);
-        this.denoisersBuilt["none"] = new emptyDenoiser(this);
-
-        for (const denoiserName in this.denoisersBuilt) {
-            if (this.denoisersBuilt.hasOwnProperty(denoiserName)) {
-                this.denoisersBuilt[denoiserName].makePipelines()
-            }
-        }
+        this.loadDenoiser("none")
 
         //this.UpdateData();
 
