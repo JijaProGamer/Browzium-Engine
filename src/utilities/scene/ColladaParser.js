@@ -22,11 +22,37 @@ function parseCollada(obj, textures={}, options={}) {
     //let xmlMaterials = Array.from(xmlDoc.getElementsByTagName("library_materials")[0].childNodes).filter(node => node.nodeType === 1);
     //console.log(xmlMaterials, 'lol sugi')
 
+    let xmlMaterials = Array.from(xmlDoc.getElementsByTagName("library_materials")[0].childNodes).filter(node => node.nodeType === 1)//.map(e => e = e.getElementsByTagName("mesh")[0]);
+    let xmlEffects = xmlDoc.getElementsByTagName("library_effects")[0];
 
+    for(let [materialIndex, material] of xmlMaterials.entries()){
+        let name = material.getAttribute("name");
+
+        let effectParent = material.getElementsByTagName("instance_effect")[0];
+        let effectURL = effectParent.getAttribute("url");
+        let effect = xmlEffects.querySelector(effectURL).getElementsByTagName("profile_COMMON")[0].getElementsByTagName("technique")[0]
+
+        let lambert = effect.getElementsByTagName("lambert")[0]
+
+        if(lambert){
+            let emissionRaw = lambert.getElementsByTagName("emission")[0].getElementsByTagName("color")[0].textContent.split(" ").map(v => parseFloat(v));
+            let emission = new Vector3(emissionRaw[0], emissionRaw[1], emissionRaw[2]);
+         
+            let diffuseRaw = lambert.getElementsByTagName("diffuse")[0].getElementsByTagName("color")[0].textContent.split(" ").map(v => parseFloat(v));
+            let diffuse = new Vector3(diffuseRaw[0], diffuseRaw[1], diffuseRaw[2]);
+            let transparency = 1 - diffuseRaw[3];
+
+            let indexOfRefraction = parseFloat(lambert.getElementsByTagName("index_of_refraction")[0].getElementsByTagName("float")[0].textContent)
+
+            console.log("plm", emission, diffuse, transparency, indexOfRefraction)
+        }
+    }
 
     let xmlObjects = Array.from(xmlDoc.getElementsByTagName("library_geometries")[0].childNodes).filter(node => node.nodeType === 1)//.map(e => e = e.getElementsByTagName("mesh")[0]);
     
     for(let [geometryIndex, geometry] of xmlObjects.entries()){
+        let name = geometry.getAttribute("name");
+
         let trianglesNode = geometry.getElementsByTagName("triangles")[0];
         let vertexIndex = trianglesNode.querySelector(`input[semantic="VERTEX"]`).getAttribute("source")
         let normalIndex = trianglesNode.querySelector(`input[semantic="NORMAL"]`).getAttribute("source")
@@ -40,7 +66,6 @@ function parseCollada(obj, textures={}, options={}) {
         let normalsRaw = normalList.getElementsByTagName("float_array")[0].textContent.split(" ").map(v => parseFloat(v))
 
         let indices = trianglesNode.querySelector(`p`).textContent.split(" ").map(v => parseInt(v))
-        let name = geometry.getAttribute("name");
 
         let vertices = []
         let normals = []
@@ -104,7 +129,7 @@ function parseCollada(obj, textures={}, options={}) {
         
         result.triangles.push(...triangles)
         result.objects[name] = triangles;
-        
+
         console.log(geometry, triangles, "geometry")
     }
 

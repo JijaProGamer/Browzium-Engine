@@ -70,11 +70,11 @@ fn calculatePixelColor(
     initialPixelHash: f32, 
 ) -> TraceOutput {
     //var pixelHash = randomVec2(initialPixelHash, pixel);
-    //var pixelModifier = random2Vec2(/*pixelHash*/initialPixelHash, pixel);
+    var pixelModifier = random2Vec2(/*pixelHash*/initialPixelHash, pixel);
 
-    //var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
+    var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
     //let DOF = applyDOF(calculatePixelDirection(realPixel), realPixel, pixelModifier.seed);
-    let DOF = applyDOF(calculatePixelDirection(pixel), pixel, initialPixelHash);
+    let DOF = applyDOF(calculatePixelDirection(realPixel), realPixel, initialPixelHash);
     
     let direction = DOF.direction;
     let start = DOF.start;
