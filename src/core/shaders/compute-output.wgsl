@@ -778,7 +778,8 @@ fn BRDFDirection(
 
 struct NEEStackElement {
     albedo: vec3<f32>,
-    emittance: vec3<f32>,
+    d_emittance: vec3<f32>,
+    i_emittance: vec3<f32>,
     intersection: HitResult,
 }
 
@@ -850,36 +851,37 @@ fn RunTracer(direction: vec3<f32>, start: vec3<f32>, rawPixelHash: f32) -> Pixel
 
         var directIncoming = CalculateDirect(intersection.position, intersection, pixelHash);
         var indirectIncoming = getColor(material, intersection).rgb * material.emittance;
-
-        let emittance = indirectIncoming + directIncoming.color;
         pixelHash = directIncoming.seed;
 
-
-        stackElement.emittance = emittance;
+        stackElement.i_emittance = indirectIncoming;
+        stackElement.d_emittance = directIncoming;
         stackElement.albedo = getColor(material, intersection).rgb;
         stack[depth] = stackElement;
 
         gatherDenoisingData = depth == 0 && (BRDFDirectionValue.isSpecular || BRDFDirectionValue.isTransparent);
         wasReflection = gatherDenoisingData;
 
-        realStart = intersection.position;
+        realStart = intersection.position + BRDFDirectionValue.direction * 0.01;
         realDirection = BRDFDirectionValue.direction;
         oldMaterial = material;
         stackLength = depth;
     }
 
-    var incomingLight = vec3<f32>(0);
-    var rayColor = vec3<f32>(1);
+    var incomingLight = vec3<f32>(0); 
 
     for(var stackDepth: i32 = stackLength; stackDepth >= 0; stackDepth = stackDepth - 1){
         let stackElement = stack[stackDepth];
 
-        incomingLight += stackElement.emittance * rayColor;
+        /*incomingLight += stackElement.emittance * rayColor;
         rayColor *= stackElement.albedo;
 
         if(stackDepth == 1) {
             incomingLight /= 2;
-        }
+        }*/
+
+        let emmitance = stackElement.i_emittance;
+
+        incomingLight = emmitance + (stackElement.albedo * incomingLight); 
     }
 
     output.noisy_color = vec4<f32>(incomingLight, 0);
