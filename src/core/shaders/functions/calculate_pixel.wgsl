@@ -47,6 +47,7 @@ fn applyDOF(
 
     output.start = inputData.CameraPosition + vec3<f32>(apertureShift.x, apertureShift.y, 0.0);
     output.direction = normalize(focalPoint - output.start);
+
     output.pixelHash = randomAperture.seed;
 
     return output;
@@ -73,8 +74,7 @@ fn calculatePixelColor(
     var pixelModifier = random2Vec2(/*pixelHash*/initialPixelHash, pixel);
 
     var realPixel = pixel + (pixelModifier.output + vec2<f32>(1, 1)) / 2;
-    //let DOF = applyDOF(calculatePixelDirection(realPixel), realPixel, pixelModifier.seed);
-    let DOF = applyDOF(calculatePixelDirection(realPixel), realPixel, initialPixelHash);
+    let DOF = applyDOF(calculatePixelDirection(realPixel), realPixel, pixelModifier.seed);
     
     let direction = DOF.direction;
     let start = DOF.start;

@@ -107,15 +107,18 @@
     await GameEngine.AwaitPageActivation()
     await GameEngine.InitActivation()
 
-    GameEngine.Renderer.tonemapMode = 0;
-    GameEngine.Renderer.gammaCorrect = false;
-    GameEngine.Renderer.denoiser = "none";
+    GameEngine.Renderer.loadDenoiser("tensorflow");
+    GameEngine.Renderer.loadDenoiser("atrous");
 
-    GameEngine.Renderer.focalLength = 2.5;
+    GameEngine.Renderer.tonemapMode = 1;
+    GameEngine.Renderer.gammaCorrect = true;
+    GameEngine.Renderer.denoiser = "none"; // atrous // tensorflow // none
+
+    GameEngine.Renderer.focalLength = 3;
     GameEngine.Renderer.apertureSize = 0;
 
-    GameEngine.Renderer.loadDenoiser("atrous");
     GameEngine.Renderer.denoisersBuilt.atrous.levels = 5;
+    //GameEngine.Renderer.denoisersBuilt.atrous.levelSteps = [3, 3, 3, 3, 3]
 
     GameEngine.Renderer.bounces = 5;
     GameEngine.Renderer.rpp = 3;
@@ -173,7 +176,7 @@
         rotationY -= (e.movementY / PPI)
 
         //rotationX = Math.max(-1, Math.min(rotationX, 1))
-        rotationY = Math.max(-0.45, Math.min(rotationY, 0.35))
+        rotationY = Math.max(-0.4, Math.min(rotationY, 0.4))
 
         cameraRotation.x = rotationX
         cameraRotation.y = rotationY
@@ -389,8 +392,11 @@
             GameEngine.Renderer.makeWorldTexture(worldTexture.resolution)
             GameEngine.Renderer.applyWorldTexture(worldTexture.bitmap)
             
-            let map = "cornell_low_light"
-            let cornellBox = OBJParser(await (await fetch(`/maps/${map}/map.obj`)).text(), {
+            //let map = "monkey"
+            //let map = "cornell_low_light"
+            //let map = "cornell_simple"
+            let map = "MHouse1"
+            /*let cornellBox = OBJParser(await (await fetch(`/maps/${map}/map.obj`)).text(), {
                 "map": await (await fetch(`/maps/${map}/map.mtl`)).text()
             }, {
                 "example_texture.bmp": await readImageFile("/maps/example_texture.bmp"),
@@ -399,19 +405,21 @@
                 "rebex.jpg": await readImageFile("/maps/rebex.jpg")
             }, {
                 objectIdentityMode: "perObject"
-            })
+            })*/
 
-            /*let cornellBox = ColladaParser(
+            let cornellBox = ColladaParser(
                 await (await fetch(`/maps/${map}/map.dae`)).text(),
                 {
                     //"example_texture.bmp": await readImageFile("/maps/example_texture.bmp"),
                 }, {
-                objectIdentityMode: "perObject"
-            })*/
+                    objectIdentityMode: "perObject",
+                    inputFormat: "xzy"
+                }
+            )
 
             console.log(cornellBox, 69)
-            //cornellBox.triangles.splice(cornellBox.objects.front_wall[0], 1)
-            //cornellBox.triangles.splice(cornellBox.objects.front_wall[1] - 1, 1)
+            //cornellBox.triangles.splice(cornellBox.objects.back_wall[0], 1)
+            //cornellBox.triangles.splice(cornellBox.objects.back_wall[1] - 1, 1)
 
             /*let objsKeys = Object.keys(cornellBox.objects);
             for (let name of objsKeys) {
@@ -432,6 +440,16 @@
 
             await GameEngine.Renderer.SetMaterials(cornellBox.materials, true)
             await GameEngine.Renderer.SetTriangles(cornellBox.triangles, true, true, true)
+
+
+            cornellBox.cameras.Camera.fov = 60;
+            GameEngine.Camera.SetOrientationMatrix(cornellBox.cameras.Camera.transform);
+            GameEngine.Camera.SetFOV(cornellBox.cameras.Camera.fov);
+
+            cameraPosition = GameEngine.Camera.Position;
+            cameraRotation = GameEngine.Camera.GetOrientationEuler();
+
+            fov_display.textContent = `FOV: ${cornellBox.cameras.Camera.fov}`
         })();
 
     function readImageFile(url) {

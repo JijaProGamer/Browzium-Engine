@@ -2,6 +2,7 @@ struct HitResult {
     depth: f32,
     hit: bool,
 
+    tri: Triangle,
     material: Material,
     object_id: f32,
 
@@ -83,19 +84,23 @@ fn hit_octree(ray_origin: vec3<f32>, ray_direction: vec3<f32>, box: TreePart) ->
 	return tmin < tmax && tmax > 0;
 }
 
-fn get_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>) -> HitResult {
+fn get_ray_intersection(ray_origin: vec3<f32>, oldId: f32, ray_direction: vec3<f32>) -> HitResult {
     var depth: f32 = 9999999;
     var result: HitResult;
+
+    result.object_id = -1;
 
     for (var i: f32 = 0; i < inputMap.triangle_count; i = i + 1) {
         let currentTriangle = inputMap.triangles[i32(i)];
         let current_result = hit_triangle(currentTriangle, ray_origin, ray_direction);
 
-        if (current_result.hit && current_result.depth < depth) {
+        if (current_result.hit && current_result.depth < depth && i != oldId) {
             result = current_result;
             depth = result.depth;
+
             result.material = inputMaterials[i32(currentTriangle.material_index)];
             result.object_id = currentTriangle.object_id;
+            result.tri = currentTriangle;
         }
     }
 
@@ -121,6 +126,7 @@ fn get_light_ray_intersection(ray_origin: vec3<f32>, ray_direction: vec3<f32>, o
             depth = result.depth;
             result.material = inputMaterials[i32(currentTriangle.material_index)];
             result.object_id = currentTriangle.object_id;
+            result.tri = currentTriangle;
         }
     }
 
@@ -192,5 +198,5 @@ fn is_triangle_facing_camera(tri: Triangle, ray_direction: vec3<f32>) -> bool {
     let dotProductB = dot(tri.nb, ray_direction);
     let dotProductC = dot(tri.nc, ray_direction);
     
-    return dotProductA < 0.0 && dotProductB < 0.0 && dotProductC < 0.0;
+    return dotProductA < 0.0 || dotProductB < 0.0 || dotProductC < 0.0;
 }

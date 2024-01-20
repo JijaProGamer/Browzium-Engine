@@ -5,8 +5,8 @@
       <author>Blender User</author>
       <authoring_tool>Blender 4.0.1 commit date:2023-11-16, commit time:16:40, hash:d0dd92834a08</authoring_tool>
     </contributor>
-    <created>2024-01-06T13:21:17</created>
-    <modified>2024-01-06T13:21:17</modified>
+    <created>2024-01-15T16:36:07</created>
+    <modified>2024-01-15T16:36:07</modified>
     <unit name="meter" meter="1"/>
     <up_axis>Z_UP</up_axis>
   </asset>
@@ -68,7 +68,7 @@
     </light>
   </library_lights>
   <library_effects>
-    <effect id="LightBlock-effect">
+    <effect id="Khaki_001-effect">
       <profile_COMMON>
         <technique sid="common">
           <lambert>
@@ -76,7 +76,7 @@
               <color sid="emission">0 0 0 1</color>
             </emission>
             <diffuse>
-              <color sid="diffuse">1 1 1 1</color>
+              <color sid="diffuse">0.8 0.659341 0.43956 1</color>
             </diffuse>
             <index_of_refraction>
               <float sid="ior">1</float>
@@ -127,7 +127,7 @@
               <color sid="emission">0 0 0 1</color>
             </emission>
             <diffuse>
-              <color sid="diffuse">0.6057505 0.002813542 0.003504955 1</color>
+              <color sid="diffuse">0.3469262 0.002813542 0.003504955 1</color>
             </diffuse>
             <index_of_refraction>
               <float sid="ior">1</float>
@@ -173,8 +173,8 @@
   </library_effects>
   <library_images/>
   <library_materials>
-    <material id="LightBlock-material" name="LightBlock">
-      <instance_effect url="#LightBlock-effect"/>
+    <material id="Khaki_001-material" name="Khaki.001">
+      <instance_effect url="#Khaki_001-effect"/>
     </material>
     <material id="TallBox-material" name="TallBox">
       <instance_effect url="#TallBox-effect"/>
@@ -193,52 +193,42 @@
     </material>
   </library_materials>
   <library_geometries>
-    <geometry id="Plane_001-mesh" name="Plane.001">
+    <geometry id="front_wall_001-mesh" name="front_wall.001">
       <mesh>
-        <source id="Plane_001-mesh-positions">
-          <float_array id="Plane_001-mesh-positions-array" count="12">-1 -1 0 1 -1 0 -1 1 0 1 1 0</float_array>
+        <source id="front_wall_001-mesh-positions">
+          <float_array id="front_wall_001-mesh-positions-array" count="12">2.78043 -5.54783 -0.19423 -2.469633 -5.54783 -0.19423 -2.469633 -5.5522 4.355118 2.841567 -5.5522 4.355118</float_array>
           <technique_common>
-            <accessor source="#Plane_001-mesh-positions-array" count="4" stride="3">
+            <accessor source="#front_wall_001-mesh-positions-array" count="4" stride="3">
               <param name="X" type="float"/>
               <param name="Y" type="float"/>
               <param name="Z" type="float"/>
             </accessor>
           </technique_common>
         </source>
-        <source id="Plane_001-mesh-normals">
-          <float_array id="Plane_001-mesh-normals-array" count="3">0 0 1</float_array>
+        <source id="front_wall_001-mesh-normals">
+          <float_array id="front_wall_001-mesh-normals-array" count="6">0 0.9999996 9.60519e-4 0 0.9999997 9.60519e-4</float_array>
           <technique_common>
-            <accessor source="#Plane_001-mesh-normals-array" count="1" stride="3">
+            <accessor source="#front_wall_001-mesh-normals-array" count="2" stride="3">
               <param name="X" type="float"/>
               <param name="Y" type="float"/>
               <param name="Z" type="float"/>
             </accessor>
           </technique_common>
         </source>
-        <source id="Plane_001-mesh-map-0">
-          <float_array id="Plane_001-mesh-map-0-array" count="12">1 0 0 1 0 0 1 0 1 1 0 1</float_array>
-          <technique_common>
-            <accessor source="#Plane_001-mesh-map-0-array" count="6" stride="2">
-              <param name="S" type="float"/>
-              <param name="T" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <vertices id="Plane_001-mesh-vertices">
-          <input semantic="POSITION" source="#Plane_001-mesh-positions"/>
+        <vertices id="front_wall_001-mesh-vertices">
+          <input semantic="POSITION" source="#front_wall_001-mesh-positions"/>
         </vertices>
-        <triangles material="LightBlock-material" count="2">
-          <input semantic="VERTEX" source="#Plane_001-mesh-vertices" offset="0"/>
-          <input semantic="NORMAL" source="#Plane_001-mesh-normals" offset="1"/>
-          <input semantic="TEXCOORD" source="#Plane_001-mesh-map-0" offset="2" set="0"/>
-          <p>1 0 0 2 0 1 0 0 2 1 0 3 3 0 4 2 0 5</p>
+        <triangles material="Khaki_001-material" count="2">
+          <input semantic="VERTEX" source="#front_wall_001-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#front_wall_001-mesh-normals" offset="1"/>
+          <p>0 0 2 0 3 0 0 1 1 1 2 1</p>
         </triangles>
       </mesh>
     </geometry>
     <geometry id="tall_box-mesh" name="tall_box">
       <mesh>
         <source id="tall_box-mesh-positions">
-          <float_array id="tall_box-mesh-positions-array" count="60">-1.684011 3.139799 -2.716226 -0.1040109 3.139409 -3.206226 -0.594011 3.138134 -4.806226 -2.174011 3.138533 -4.306226 -1.684011 -0.1601999 -2.713598 -1.684011 3.139799 -2.716226 -2.174011 3.138533 -4.306226 -2.174011 -0.161466 -4.303598 -2.174011 -0.161466 -4.303598 -2.174011 3.138533 -4.306226 -0.594011 3.138134 -4.806226 -0.594011 -0.161864 -4.803598 -0.594011 -0.161864 -4.803598 -0.594011 3.138134 -4.806226 -0.1040109 3.139409 -3.206226 -0.1040109 -0.1605899 -3.203598 -0.1040109 -0.1605899 -3.203598 -0.1040109 3.139409 -3.206226 -1.684011 3.139799 -2.716226 -1.684011 -0.1601999 -2.713598</float_array>
+          <float_array id="tall_box-mesh-positions-array" count="60">1.684011 -2.716226 3.139799 0.1040109 -3.206226 3.139409 0.594011 -4.806226 3.138134 2.174011 -4.306226 3.138533 1.684011 -2.713598 -0.1601999 1.684011 -2.716226 3.139799 2.174011 -4.306226 3.138533 2.174011 -4.303598 -0.161466 2.174011 -4.303598 -0.161466 2.174011 -4.306226 3.138533 0.594011 -4.806226 3.138134 0.594011 -4.803598 -0.161864 0.594011 -4.803598 -0.161864 0.594011 -4.806226 3.138134 0.1040109 -3.206226 3.139409 0.1040109 -3.203598 -0.1605899 0.1040109 -3.203598 -0.1605899 0.1040109 -3.206226 3.139409 1.684011 -2.716226 3.139799 1.684011 -2.713598 -0.1601999</float_array>
           <technique_common>
             <accessor source="#tall_box-mesh-positions-array" count="20" stride="3">
               <param name="X" type="float"/>
@@ -248,7 +238,7 @@
           </technique_common>
         </source>
         <source id="tall_box-mesh-normals">
-          <float_array id="tall_box-mesh-normals-array" count="30">0 0.9999998 -7.95999e-4 -0.955649 2.34484e-4 0.2945081 -0.3017087 -7.5922e-4 -0.9533999 0.9561659 -2.33192e-4 -0.2928256 0.2962092 7.60647e-4 0.9551228 3.78339e-7 0.9999997 -7.97193e-4 -0.9556491 2.34575e-4 0.294508 -0.3017092 -7.59204e-4 -0.9533997 0.9561659 -2.33191e-4 -0.2928258 0.2962092 7.60656e-4 0.9551228</float_array>
+          <float_array id="tall_box-mesh-normals-array" count="30">0 -7.95999e-4 0.9999998 0.955649 0.2945081 2.34484e-4 0.3017087 -0.9533999 -7.5922e-4 -0.9561659 -0.2928256 -2.33192e-4 -0.2962092 0.9551228 7.60647e-4 -3.78339e-7 -7.97193e-4 0.9999997 0.9556491 0.294508 2.34575e-4 0.3017092 -0.9533997 -7.59204e-4 -0.9561659 -0.2928258 -2.33191e-4 -0.2962092 0.9551228 7.60656e-4</float_array>
           <technique_common>
             <accessor source="#tall_box-mesh-normals-array" count="10" stride="3">
               <param name="X" type="float"/>
@@ -270,7 +260,7 @@
     <geometry id="short_box-mesh" name="short_box">
       <mesh>
         <source id="short_box-mesh-positions">
-          <float_array id="short_box-mesh-positions-array" count="60">1.245989 1.491249 -0.894913 1.725989 1.489975 -2.494912 0.145989 1.489601 -2.964912 -0.354011 1.490859 -1.384912 -0.354011 -0.159141 -1.383599 -0.354011 1.490859 -1.384912 0.145989 1.489601 -2.964912 0.145989 -0.160399 -2.963598 1.245989 -0.1587499 -0.893599 1.245989 1.491249 -0.894913 -0.354011 1.490859 -1.384912 -0.354011 -0.159141 -1.383599 1.725989 -0.160024 -2.493598 1.725989 1.489975 -2.494912 1.245989 1.491249 -0.894913 1.245989 -0.1587499 -0.893599 0.145989 -0.160399 -2.963598 0.145989 1.489601 -2.964912 1.725989 1.489975 -2.494912 1.725989 -0.160024 -2.493598</float_array>
+          <float_array id="short_box-mesh-positions-array" count="60">-1.245989 -0.894913 1.491249 -1.725989 -2.494912 1.489975 -0.145989 -2.964912 1.489601 0.354011 -1.384912 1.490859 0.354011 -1.383599 -0.159141 0.354011 -1.384912 1.490859 -0.145989 -2.964912 1.489601 -0.145989 -2.963598 -0.160399 -1.245989 -0.893599 -0.1587499 -1.245989 -0.894913 1.491249 0.354011 -1.384912 1.490859 0.354011 -1.383599 -0.159141 -1.725989 -2.493598 -0.160024 -1.725989 -2.494912 1.489975 -1.245989 -0.894913 1.491249 -1.245989 -0.893599 -0.1587499 -0.145989 -2.963598 -0.160399 -0.145989 -2.964912 1.489601 -1.725989 -2.494912 1.489975 -1.725989 -2.493598 -0.160024</float_array>
           <technique_common>
             <accessor source="#short_box-mesh-positions-array" count="20" stride="3">
               <param name="X" type="float"/>
@@ -280,7 +270,7 @@
           </technique_common>
         </source>
         <source id="short_box-mesh-normals">
-          <float_array id="short_box-mesh-normals-array" count="30">1.19564e-7 0.9999997 -7.96247e-4 -0.9534 -2.40082e-4 -0.301709 -0.2928259 7.61479e-4 0.9561656 0.9578264 2.28883e-4 0.2873478 0.2851207 -7.63275e-4 -0.9584914 1.59894e-7 0.9999998 -7.9623e-4 -0.9534002 -2.40253e-4 -0.3017088 -0.2928255 7.6086e-4 0.9561657 0.9578263 2.28663e-4 0.2873479 0.2851208 -7.63262e-4 -0.9584914</float_array>
+          <float_array id="short_box-mesh-normals-array" count="30">-1.19564e-7 -7.96247e-4 0.9999997 0.9534 -0.301709 -2.40082e-4 0.2928259 0.9561656 7.61479e-4 -0.9578264 0.2873478 2.28883e-4 -0.2851207 -0.9584914 -7.63275e-4 -1.59894e-7 -7.9623e-4 0.9999998 0.9534002 -0.3017088 -2.40253e-4 0.2928255 0.9561657 7.6086e-4 -0.9578263 0.2873479 2.28663e-4 -0.2851208 -0.9584914 -7.63262e-4</float_array>
           <technique_common>
             <accessor source="#short_box-mesh-normals-array" count="10" stride="3">
               <param name="X" type="float"/>
@@ -302,7 +292,7 @@
     <geometry id="right_wall-mesh" name="right_wall">
       <mesh>
         <source id="right_wall-mesh-positions">
-          <float_array id="right_wall-mesh-positions-array" count="12">2.24308 4.419254 0.65409 2.211079 4.423151 -5.620371 2.27508 -0.377883 -5.625281 2.27508 -0.381781 0.649186</float_array>
+          <float_array id="right_wall-mesh-positions-array" count="12">-2.24308 0.65409 4.419254 -2.211079 -5.620371 4.423151 -2.27508 -5.625281 -0.377883 -2.27508 0.649186 -0.381781</float_array>
           <technique_common>
             <accessor source="#right_wall-mesh-positions-array" count="4" stride="3">
               <param name="X" type="float"/>
@@ -312,9 +302,9 @@
           </technique_common>
         </source>
         <source id="right_wall-mesh-normals">
-          <float_array id="right_wall-mesh-normals-array" count="12">-0.9999462 -0.01005631 0.002567768 -0.9999475 -0.00993818 0.002527117 -0.9999778 -0.00666511 -4.14072e-6 -0.9998982 -0.01333451 0.005091369</float_array>
+          <float_array id="right_wall-mesh-normals-array" count="18">0.9999737 5.01897e-4 -0.007241487 0.9999825 1.29998e-4 -0.005909919 0.9999778 -4.14072e-6 -0.00666511 0.9998885 0.004968106 -0.01409149 0.9998982 0.005091369 -0.01333451 0.9999082 0.004593312 -0.01275128</float_array>
           <technique_common>
-            <accessor source="#right_wall-mesh-normals-array" count="4" stride="3">
+            <accessor source="#right_wall-mesh-normals-array" count="6" stride="3">
               <param name="X" type="float"/>
               <param name="Y" type="float"/>
               <param name="Z" type="float"/>
@@ -327,14 +317,14 @@
         <triangles material="BloodyRed-material" count="2">
           <input semantic="VERTEX" source="#right_wall-mesh-vertices" offset="0"/>
           <input semantic="NORMAL" source="#right_wall-mesh-normals" offset="1"/>
-          <p>0 0 2 1 3 2 0 0 1 3 2 1</p>
+          <p>0 0 2 1 3 2 0 3 1 4 2 5</p>
         </triangles>
       </mesh>
     </geometry>
     <geometry id="left_wall-mesh" name="left_wall">
       <mesh>
         <source id="left_wall-mesh-positions">
-          <float_array id="left_wall-mesh-positions-array" count="12">-2.759865 4.378768 0.582834 -2.759866 4.374935 -5.617749 -2.759866 -0.347173 -5.612903 -2.759865 -0.34334 0.587685</float_array>
+          <float_array id="left_wall-mesh-positions-array" count="12">2.759865 0.582834 4.378768 2.759866 -5.617749 4.374935 2.759866 -5.612903 -0.347173 2.759865 0.587685 -0.34334</float_array>
           <technique_common>
             <accessor source="#left_wall-mesh-positions-array" count="4" stride="3">
               <param name="X" type="float"/>
@@ -344,7 +334,7 @@
           </technique_common>
         </source>
         <source id="left_wall-mesh-normals">
-          <float_array id="left_wall-mesh-normals-array" count="6">1 0 -1.53804e-7 1 0 -1.53804e-7</float_array>
+          <float_array id="left_wall-mesh-normals-array" count="6">-1 -1.53804e-7 0 -1 -1.53804e-7 0</float_array>
           <technique_common>
             <accessor source="#left_wall-mesh-normals-array" count="2" stride="3">
               <param name="X" type="float"/>
@@ -366,7 +356,7 @@
     <geometry id="front_wall-mesh" name="front_wall">
       <mesh>
         <source id="front_wall-mesh-positions">
-          <float_array id="front_wall-mesh-positions-array" count="12">-2.78043 -0.19423 -5.54783 2.469633 -0.19423 -5.54783 2.469633 4.355118 -5.5522 -2.841567 4.355118 -5.5522</float_array>
+          <float_array id="front_wall-mesh-positions-array" count="12">2.78043 -5.54783 -0.19423 -2.469633 -5.54783 -0.19423 -2.469633 -5.5522 4.355118 2.841567 -5.5522 4.355118</float_array>
           <technique_common>
             <accessor source="#front_wall-mesh-positions-array" count="4" stride="3">
               <param name="X" type="float"/>
@@ -376,7 +366,7 @@
           </technique_common>
         </source>
         <source id="front_wall-mesh-normals">
-          <float_array id="front_wall-mesh-normals-array" count="6">0 9.60519e-4 0.9999997 0 9.60519e-4 0.9999996</float_array>
+          <float_array id="front_wall-mesh-normals-array" count="6">0 0.9999996 9.60519e-4 0 0.9999997 9.60519e-4</float_array>
           <technique_common>
             <accessor source="#front_wall-mesh-normals-array" count="2" stride="3">
               <param name="X" type="float"/>
@@ -391,14 +381,14 @@
         <triangles material="Khaki-material" count="2">
           <input semantic="VERTEX" source="#front_wall-mesh-vertices" offset="0"/>
           <input semantic="NORMAL" source="#front_wall-mesh-normals" offset="1"/>
-          <p>0 0 2 0 3 1 0 0 1 0 2 0</p>
+          <p>0 0 2 0 3 0 0 1 1 1 2 1</p>
         </triangles>
       </mesh>
     </geometry>
     <geometry id="floor-mesh" name="floor">
       <mesh>
         <source id="floor-mesh-positions">
-          <float_array id="floor-mesh-positions-array" count="12">-2.880906 -0.158233 0.597611 2.417847 -0.158233 0.597611 2.417847 -0.162686 -5.581182 -2.850234 -0.162686 -5.581182</float_array>
+          <float_array id="floor-mesh-positions-array" count="12">2.880906 0.597611 -0.158233 -2.417847 0.597611 -0.158233 -2.417847 -5.581182 -0.162686 2.850234 -5.581182 -0.162686</float_array>
           <technique_common>
             <accessor source="#floor-mesh-positions-array" count="4" stride="3">
               <param name="X" type="float"/>
@@ -408,7 +398,7 @@
           </technique_common>
         </source>
         <source id="floor-mesh-normals">
-          <float_array id="floor-mesh-normals-array" count="6">0 0.9999998 -7.20691e-4 0 0.9999998 -7.20693e-4</float_array>
+          <float_array id="floor-mesh-normals-array" count="6">0 -7.20691e-4 0.9999998 0 -7.20693e-4 0.9999998</float_array>
           <technique_common>
             <accessor source="#floor-mesh-normals-array" count="2" stride="3">
               <param name="X" type="float"/>
@@ -430,7 +420,7 @@
     <geometry id="ceiling-mesh" name="ceiling">
       <mesh>
         <source id="ceiling-mesh-positions">
-          <float_array id="ceiling-mesh-positions-array" count="12">-2.902021 4.213693 0.558923 -2.902021 4.209937 -5.620494 2.357208 4.209937 -5.620494 2.357208 4.213693 0.558923</float_array>
+          <float_array id="ceiling-mesh-positions-array" count="12">2.902021 0.558923 4.213693 2.902021 -5.620494 4.209937 -2.357208 -5.620494 4.209937 -2.357208 0.558923 4.213693</float_array>
           <technique_common>
             <accessor source="#ceiling-mesh-positions-array" count="4" stride="3">
               <param name="X" type="float"/>
@@ -440,7 +430,7 @@
           </technique_common>
         </source>
         <source id="ceiling-mesh-normals">
-          <float_array id="ceiling-mesh-normals-array" count="6">0 -0.9999999 6.07906e-4 0 -0.9999999 6.07789e-4</float_array>
+          <float_array id="ceiling-mesh-normals-array" count="6">0 6.07906e-4 -0.9999999 0 6.07789e-4 -0.9999999</float_array>
           <technique_common>
             <accessor source="#ceiling-mesh-normals-array" count="2" stride="3">
               <param name="X" type="float"/>
@@ -462,24 +452,22 @@
   </library_geometries>
   <library_visual_scenes>
     <visual_scene id="Scene" name="Scene">
-      <node id="Light" name="Light" type="NODE">
-        <matrix sid="transform">-0.5035296 0 0 0.337702 0 0 1.883126 4.21166 0 0.5028818 0 2.29395 0 0 0 1</matrix>
-        <instance_geometry url="#Plane_001-mesh" name="Light">
+      <node id="back_wall" name="back_wall" type="NODE">
+        <matrix sid="transform">0.9857895 0 0 0.1100091 0 7.80514e-8 1.033483 -0.1340095 0 -1.033822 7.80258e-8 -10.53436 0 0 0 1</matrix>
+        <instance_geometry url="#front_wall_001-mesh" name="back_wall">
           <bind_material>
             <technique_common>
-              <instance_material symbol="LightBlock-material" target="#LightBlock-material">
-                <bind_vertex_input semantic="UVMap" input_semantic="TEXCOORD" input_set="0"/>
-              </instance_material>
+              <instance_material symbol="Khaki_001-material" target="#Khaki_001-material"/>
             </technique_common>
           </bind_material>
         </instance_geometry>
       </node>
       <node id="Area" name="Area" type="NODE">
-        <matrix sid="transform">-1 0 0 0.337702 0 0 1 4.20166 0 1 0 2.29395 0 0 0 1</matrix>
+        <matrix sid="transform">1 0 0 0.337702 0 1 0 4.20166 0 0 1 2.29395 0 0 0 1</matrix>
         <instance_light url="#Area-light"/>
       </node>
       <node id="tall_box" name="tall_box" type="NODE">
-        <matrix sid="transform">-1 0 0 0 0 1 7.54979e-8 0 0 7.54979e-8 -1 0 0 0 0 1</matrix>
+        <matrix sid="transform">1 0 0 0 0 7.54979e-8 1 0 0 -1 7.54979e-8 0 0 0 0 1</matrix>
         <instance_geometry url="#tall_box-mesh" name="tall_box">
           <bind_material>
             <technique_common>
@@ -489,7 +477,7 @@
         </instance_geometry>
       </node>
       <node id="short_box" name="short_box" type="NODE">
-        <matrix sid="transform">-0.9692999 -1.85635e-8 0.2458816 0.4440038 0 1 7.54979e-8 0 -0.2458816 7.31801e-8 -0.9692999 0.1468699 0 0 0 1</matrix>
+        <matrix sid="transform">0.9692999 0.2458816 -1.85635e-8 0.4440038 0 7.54979e-8 1 0 0.2458816 -0.9692999 7.31801e-8 0.1468699 0 0 0 1</matrix>
         <instance_geometry url="#short_box-mesh" name="short_box">
           <bind_material>
             <technique_common>
@@ -499,7 +487,7 @@
         </instance_geometry>
       </node>
       <node id="right_wall" name="right_wall" type="NODE">
-        <matrix sid="transform">-1 0 0 0 0 0.9545757 7.54979e-8 0 0 7.20685e-8 -1 0 0 0 0 1</matrix>
+        <matrix sid="transform">1 0 0 0 0 1.26823e-7 0.9545756 0 0 -1.679816 7.20685e-8 -3.683887 0 0 0 1</matrix>
         <instance_geometry url="#right_wall-mesh" name="right_wall">
           <bind_material>
             <technique_common>
@@ -509,7 +497,7 @@
         </instance_geometry>
       </node>
       <node id="left_wall" name="left_wall" type="NODE">
-        <matrix sid="transform">-1 0 0 0 0 0.9695231 7.54979e-8 0 0 7.3197e-8 -1 0 0 0 0 1</matrix>
+        <matrix sid="transform">1 0 0 0 0 1.30773e-7 0.9695231 0 0 -1.732135 7.3197e-8 -4.006198 0 0 0 1</matrix>
         <instance_geometry url="#left_wall-mesh" name="left_wall">
           <bind_material>
             <technique_common>
@@ -519,7 +507,7 @@
         </instance_geometry>
       </node>
       <node id="front_wall" name="front_wall" type="NODE">
-        <matrix sid="transform">-0.9535391 0 0 0.1100091 0 0.9996721 7.54979e-8 -0.1340095 0 7.54731e-8 -1 -7.47037e-4 0 0 0 1</matrix>
+        <matrix sid="transform">0.9535391 0 0 0.1100091 0 7.54979e-8 0.9996721 -0.1340095 0 -1 7.54731e-8 -7.47037e-4 0 0 0 1</matrix>
         <instance_geometry url="#front_wall-mesh" name="front_wall">
           <bind_material>
             <technique_common>
@@ -529,7 +517,7 @@
         </instance_geometry>
       </node>
       <node id="floor" name="floor" type="NODE">
-        <matrix sid="transform">-1 0 0 0 0 1 7.54979e-8 0 0 7.54979e-8 -1 0 0 0 0 1</matrix>
+        <matrix sid="transform">1 0 0 -0.0153709 0 1.33946e-7 1 -2.03449e-4 0 -1.774174 7.54979e-8 -4.080163 0 0 0 1</matrix>
         <instance_geometry url="#floor-mesh" name="floor">
           <bind_material>
             <technique_common>
@@ -539,7 +527,7 @@
         </instance_geometry>
       </node>
       <node id="ceiling" name="ceiling" type="NODE">
-        <matrix sid="transform">-0.9510281 0 0 0 0 1 7.54979e-8 0 0 7.54979e-8 -1 0 0 0 0 1</matrix>
+        <matrix sid="transform">0.9510281 0 0 0 0 1.29887e-7 1 0 0 -1.720405 7.54979e-8 -3.92889 0 0 0 1</matrix>
         <instance_geometry url="#ceiling-mesh" name="ceiling">
           <bind_material>
             <technique_common>
@@ -549,7 +537,7 @@
         </instance_geometry>
       </node>
       <node id="Camera" name="Camera" type="NODE">
-        <matrix sid="transform">-1 0 0 0.2566645 0 1 -4.37114e-8 2.013158 0 -4.37114e-8 -1 -4.420357 0 0 0 1</matrix>
+        <matrix sid="transform">1 0 0 0.2566645 0 -4.37114e-8 1 2.013158 0 -1 -4.37114e-8 -4.420357 0 0 0 1</matrix>
         <instance_camera url="#Camera-camera"/>
       </node>
     </visual_scene>

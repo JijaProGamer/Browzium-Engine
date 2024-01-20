@@ -114,6 +114,5 @@ fn fragmentMain(fsInput: VertexOutput) -> @location(0) vec4f {
 
     // Displaying
 
-    //return vec4<f32>(position.xy / inputData.resolution, 0, 1);
     return pixel;
 }

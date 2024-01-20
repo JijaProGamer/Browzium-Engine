@@ -28,7 +28,51 @@ class CameraModel {
     }
 
     SetOrientationMatrix(matrix){
-        this.CameraToWorldMatrix = matrix;
+        const rotationMatrix = new Matrix(3, 3, [
+            matrix.get(0, 0), matrix.get(0, 1), matrix.get(0, 2),
+            matrix.get(1, 0), matrix.get(1, 1), matrix.get(1, 2),
+            matrix.get(2, 0), matrix.get(2, 1), matrix.get(2, 2)
+        ]);
+    
+        const translationVector = new Vector3(
+            matrix.get(0, 3),
+            matrix.get(1, 3),
+            matrix.get(2, 3)
+        );
+    
+        const trace = rotationMatrix.get(0, 0) + rotationMatrix.get(1, 1) + rotationMatrix.get(2, 2);
+        let qx, qy, qz, qw;
+    
+        if (trace > 0) {
+            const s = 0.5 / Math.sqrt(trace + 1.0);
+            qw = 0.25 / s;
+            qx = (rotationMatrix.get(2, 1) - rotationMatrix.get(1, 2)) * s;
+            qy = (rotationMatrix.get(0, 2) - rotationMatrix.get(2, 0)) * s;
+            qz = (rotationMatrix.get(1, 0) - rotationMatrix.get(0, 1)) * s;
+        } else if (rotationMatrix.get(0, 0) > rotationMatrix.get(1, 1) && rotationMatrix.get(0, 0) > rotationMatrix.get(2, 2)) {
+            const s = 2.0 * Math.sqrt(1.0 + rotationMatrix.get(0, 0) - rotationMatrix.get(1, 1) - rotationMatrix.get(2, 2));
+            qw = (rotationMatrix.get(2, 1) - rotationMatrix.get(1, 2)) / s;
+            qx = 0.25 * s;
+            qy = (rotationMatrix.get(0, 1) + rotationMatrix.get(1, 0)) / s;
+            qz = (rotationMatrix.get(0, 2) + rotationMatrix.get(2, 0)) / s;
+        } else if (rotationMatrix.get(1, 1) > rotationMatrix.get(2, 2)) {
+            const s = 2.0 * Math.sqrt(1.0 + rotationMatrix.get(1, 1) - rotationMatrix.get(0, 0) - rotationMatrix.get(2, 2));
+            qw = (rotationMatrix.get(0, 2) - rotationMatrix.get(2, 0)) / s;
+            qx = (rotationMatrix.get(0, 1) + rotationMatrix.get(1, 0)) / s;
+            qy = 0.25 * s;
+            qz = (rotationMatrix.get(1, 2) + rotationMatrix.get(2, 1)) / s;
+        } else {
+            const s = 2.0 * Math.sqrt(1.0 + rotationMatrix.get(2, 2) - rotationMatrix.get(0, 0) - rotationMatrix.get(1, 1));
+            qw = (rotationMatrix.get(1, 0) - rotationMatrix.get(0, 1)) / s;
+            qx = (rotationMatrix.get(0, 2) + rotationMatrix.get(2, 0)) / s;
+            qy = (rotationMatrix.get(1, 2) + rotationMatrix.get(2, 1)) / s;
+            qz = 0.25 * s;
+        }
+    
+        const quaternion = new Quaternion(qx, qy, qz, qw).normalize();
+
+        this.SetPosition(translationVector)
+        this.SetOrientationQuaternion(quaternion);
     }
 
     NewOrientationMatrix(){
@@ -71,6 +115,24 @@ class CameraModel {
         );
 
         this.SetOrientationQuaternion(orientation);
+    }
+
+    GetOrientationEuler(){
+        const { x, y, z, w } = this.Orientation;
+
+        const sinP = 2.0 * (w * x + y * z);
+        const cosP = 1.0 - 2.0 * (x * x + y * y);
+        const pitch = Math.atan2(sinP, cosP);
+    
+        const sinY = 2.0 * (w * y - z * x);
+        const cosY = 1.0 - 2.0 * (y * y + z * z);
+        const yaw = Math.atan2(sinY, cosY);
+    
+        const sinR = 2.0 * (w * z + x * y);
+        const cosR = 1.0 - 2.0 * (y * y + z * z);
+        const roll = Math.atan2(sinR, cosR);
+    
+        return new Vector3(pitch * 180.0 / Math.PI, yaw * 180.0 / Math.PI, roll * 180.0 / Math.PI);
     }
 
     SetPosition(cameraPosition) {
