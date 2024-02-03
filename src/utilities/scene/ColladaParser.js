@@ -81,6 +81,7 @@ function parseCollada(obj, textures = {}, options = {}) {
     let geometryIndex = 0;
 
     function loadObject(transformMatrix, geometry, materialName) {
+        let normalTransformMatrix = transformMatrix.transpose()
         let name = geometry.getAttribute("name");
 
         let trianglesNode = geometry.getElementsByTagName("triangles")[0];
@@ -110,14 +111,16 @@ function parseCollada(obj, textures = {}, options = {}) {
         }
 
         for (let i = 0; i < normalsRaw.length; i += 3) {
-            if(options.inputFormat == "xyz"){
-                normals.push(new Vector3(normalsRaw[i], normalsRaw[i + 1], normalsRaw[i + 2]))
-            } else if(options.inputFormat == "xzy"){
-                normals.push(new Vector3(0, normalsRaw[i], 0))
-            }
+            let normal = new Vector4(normalsRaw[i], normalsRaw[i + 1], normalsRaw[i + 2], 0)
+            normal = normalTransformMatrix.multiplyVector(normal)
+            normal.normalize()
+
+            normals.push(new Vector3(normal.x, normal.y, normal.z))
         }
 
         let inputTypes = trianglesNode.getElementsByTagName(`input`);
+
+        // TODO:  Multiply the object rotation matrix by the normal
 
         if (inputTypes.length == 3) {
             for (let i = 0; i < indices.length; i += 3) {

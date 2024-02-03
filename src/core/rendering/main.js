@@ -1,16 +1,12 @@
-//import Denoiser from "./denoiser.js"
 
 import Vector3 from "../classes/Vector3";
 import Vector2 from "../classes/Vector2";
-import BVHTree from "../classes/bvh";
 
-import ATrousDenoiser from "./denoiser/ATrous";
-import emptyDenoiser from "./denoiser/none";
-import TensorflowDenoiser from "./denoiser/tensorflow"
+import PathTracedRenderer from "./path_traced/renderer";
+import RasterRenderer from "./raster/renderer";
 
 let triangleStride = (3 * 4) + (3 * 4) + (2 * 4);
 let materialStride = 4 + 4 + 4 + 4;
-let octreeBranchStride = 4 + 4 + 4 + 8;
 
 function getNext2Power(n) {
     return Math.pow(2, Math.ceil(Math.log2(n + 1)));
@@ -21,9 +17,11 @@ class RenderingManager {
 
     opts;
     canvas;
-    UpdateDataBuffer = false;
-    #lastCanvasSize = { width: 0, height: 0 }
     materials = [];
+    triangles = [];
+    lights = []
+
+    #lastCanvasSize = {width: 0, height: 0}
 
     // raw gpu context
 
@@ -33,58 +31,14 @@ class RenderingManager {
 
     presentationFormat;
 
-    // compute pipeline
-
-    computePipeline;
-    renderPipeline;
-
-    computeDataBindGroup;
-    computeMapBindGroup;
-    computeImageBindGroup;
-
-    computeDataLayout;
-    computeMapLayout;
-    computeImageLayout;
-
-    renderTextureColor;
-    renderTextureReadColor;
-
-    renderTextureNormal;
-    renderTextureReadNormal;
-
-    renderTextureDepth;
-    renderTextureReadDepth;
-    renderTextureAlbedo;
-    renderTextureReadAlbedo;
-    renderTextureObject;
-
-    renderTextureHistory;
-    renderTextureHistoryRead;
-    renderHistoryData
-
-    temporalBuffer;
-    renderDenoisedTexture;
-    renderReadTexture;
-
-    computeGlobalData;
-    computeMapData;
-    computeLightData;
-    computeMaterialData;
-    computeOctreeTreeData;
-
     // Camera
 
     Camera
 
     // Renderer Data
 
-    bounces = 5;
-    rpp = 3;
-
     tonemapMode = 1;
     gammaCorrect = true;
-
-    denoiser = "none"
 
     frame = 0;
     staticFrames = 0;
@@ -92,7 +46,13 @@ class RenderingManager {
     focalLength = 0;
     apertureSize = 0;
 
-    denoisersBuilt = {}
+    rendererType = "raster"
+    renderer = null
+
+    // Buffers
+
+    computeLightData;
+    computeMaterialData;
 
     // Texture Data
 
@@ -115,462 +75,7 @@ class RenderingManager {
         this.Camera = Camera
     }
 
-    async loadDenoiser(name){
-        let denoisersByName = {
-            "none": emptyDenoiser,
-            "atrous": ATrousDenoiser,
-            "tensorflow": TensorflowDenoiser,
-        }
-
-        this.denoisersBuilt[name] = new denoisersByName[name](this);
-        await this.denoisersBuilt[name].makePipelines()
-    }
-
-    unloadDenoiser(name){
-        delete this.denoisersBuilt[name];
-    }
-
-    #makeBindGroups() {
-        /*
-            Pixel:
-
-            Noisy Image - 4 channels (r, g, b, w)
-            Normal Image - 4 channels (r, g, b, w)
-            Velocity Image - 4 channels (r, g, b, w)
-        */
-
-        /*
-            Temportal Pixel
-
-            Velocity - 4 channels (r, g, b, w)
-        */
-
-        // render textures
-
-        let TextureSize = (this.canvas.width * this.canvas.height * 4) * 4;
-        let ComputeSize = TextureSize * 3;
-        let TemportalSize = TextureSize * 1;
-
-        this.renderTextureReadDenoised = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderTextureColor = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderTextureNormal = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderTextureDepth = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderTextureAlbedo = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderTextureObject = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'r32float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderTextureHistory = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba32float',
-            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderTextureHistoryRead = this.device.createTexture({
-            label: "renderTextureHistoryRead",
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba32float',
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderDenoisedTexture = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: 'rgba16float',
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-
-        this.renderHistoryData = this.device.createBuffer({
-            size: 8,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-
-        this.temporalBuffer = this.device.createBuffer({
-            size: TemportalSize,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-        });
-
-        this.renderReadTexture = this.device.createBuffer({
-            size: ComputeSize,
-            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-        });
-
-        // Data
-
-        this.computeGlobalData = this.device.createBuffer({
-            size: 128,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-
-
-        // Bind groups
-
-        this.computeDataBindGroup = this.device.createBindGroup({
-            layout: this.computeDataLayout,
-            label: "Browzium Engine compute shader data bind group",
-            entries: [
-                {
-                    binding: 0,
-                    resource: {
-                        buffer: this.computeGlobalData,
-                    },
-                }
-            ],
-        });
-
-        this.computeMapBindGroup = this.device.createBindGroup({
-            layout: this.computeMapLayout,
-            label: "Browzium Engine compute shader map bind group",
-            entries: [
-                {
-                    binding: 0,
-                    resource: {
-                        buffer: this.computeMapData,
-                    },
-                },
-                {
-                    binding: 1,
-                    resource: {
-                        buffer: this.computeLightData,
-                    }
-                },
-                {
-                    binding: 2,
-                    resource: {
-                        buffer: this.computeMaterialData,
-                    },
-                },
-                {
-                    binding: 3,
-                    resource: {
-                        buffer: this.computeOctreeTreeData,
-                    },
-                },
-                {
-                    binding: 4,
-                    resource: this.textureAtlas.createView(),
-                },
-                {
-                    binding: 5,
-                    resource: this.textureAtlasSampler,
-                },
-                {
-                    binding: 6,
-                    resource: this.worldTexture.createView(),
-                },
-                {
-                    binding: 7,
-                    resource: this.worldTextureSampler,
-                }
-            ],
-        });
-
-        this.fragmentBindGroup = this.device.createBindGroup({
-            layout: this.fragmentImageLayout,
-            label: "Browzium Engine fragment shader bind group",
-            entries: [
-                {
-                    binding: 0,
-                    resource: this.renderTextureReadDenoised.createView(), // TODO: FIX
-                },
-                {
-                    binding: 1,
-                    resource: this.renderTextureHistory.createView(),
-                },
-                {
-                    binding: 2,
-                    resource: this.renderTextureHistoryRead.createView(),
-                }
-            ],
-        });
-
-        this.computeImageBindGroup = this.device.createBindGroup({
-            layout: this.computeImageLayout,
-            label: "Browzium Engine compute shader image bind group",
-            entries: [
-                {
-                    binding: 0,
-                    resource: this.renderTextureColor.createView(),
-                },
-                {
-                    binding: 1,
-                    resource: this.renderTextureNormal.createView(),
-                },
-                {
-                    binding: 2,
-                    resource: this.renderTextureDepth.createView(),
-                },
-                {
-                    binding: 3,
-                    resource: this.renderTextureAlbedo.createView(),
-                },
-                {
-                    binding: 4,
-                    resource: this.renderTextureObject.createView(),
-                }
-            ],
-        });
-
-        this.renderHistoryDataBindGroup = this.device.createBindGroup({
-            layout: this.frameDataLayout,
-            label: "Browzium Engine compute shader image bind group",
-            entries: [
-                {
-                    binding: 0,
-                    resource: {
-                        buffer: this.renderHistoryData,
-                    },
-                }
-            ],
-        });
-    }
-
-    #makePipelines() {
-        const computeShader = this.device.createShaderModule({ code: this.opts.shaders.compute, label: "Browzium engine compute shader code" });
-        const fragmentShader = this.device.createShaderModule({ code: this.opts.shaders.fragment, label: "Browzium engine fragment shader code" });
-        const vertexShader = this.device.createShaderModule({ code: this.opts.shaders.vertex, label: "Browzium engine vertex shader code" });
-
-        this.computeDataLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "read-only-storage",
-                    },
-                },
-            ],
-        });
-
-        this.computeMapLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: {
-                        type: "read-only-storage",
-                    },
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: {
-                        type: "read-only-storage",
-                    }
-                },
-                {
-                    binding: 2,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: {
-                        type: "read-only-storage",
-                    }
-                },
-                {
-                    binding: 3,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: {
-                        type: "read-only-storage",
-                    }
-                },
-                {
-                    binding: 4,
-                    visibility: GPUShaderStage.COMPUTE,
-                    texture: {
-                        format: "rgba16float",
-                        multisampled: false,
-                        viewDimension: "2d-array",
-                    }
-                },
-                {
-                    binding: 5,
-                    visibility: GPUShaderStage.COMPUTE,
-                    sampler: {},
-                },
-                {
-                    binding: 6,
-                    visibility: GPUShaderStage.COMPUTE,
-                    texture: {
-                        format: "rgba16float",
-                        multisampled: false,
-                        viewDimension: "2d",
-                    }
-                },
-                {
-                    binding: 7,
-                    visibility: GPUShaderStage.COMPUTE,
-                    sampler: {},
-                }
-            ],
-        });
-
-        this.computeImageLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    storageTexture: {
-                        access: "write-only",
-                        format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    storageTexture: {
-                        access: "write-only",
-                        format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                },
-                {
-                    binding: 2,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    storageTexture: {
-                        access: "write-only",
-                        format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                },
-                {
-                    binding: 3,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    storageTexture: {
-                        access: "write-only",
-                        format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                },
-                {
-                    binding: 4,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    storageTexture: {
-                        access: "write-only",
-                        format: "r32float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                }
-            ],
-        });
-
-        this.frameDataLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "read-only-storage",
-                    },
-                }
-            ],
-        });
-
-        this.fragmentImageLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    texture: {
-                        format: "rgba16float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    storageTexture: {
-                        access: "write-only",
-                        format: "rgba32float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                },
-                {
-                    binding: 2,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-                    texture: {
-                        format: "rgba32float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    }
-                },
-            ],
-        });
-
-        let pipelineLayout = this.device.createPipelineLayout({
-            bindGroupLayouts: [this.computeDataLayout, this.computeMapLayout, this.computeImageLayout, this.frameDataLayout],
-            label: "Browzium Engine Pipeline Layout",
-        })
-
-        let fragmentPipelineLayout = this.device.createPipelineLayout({
-            bindGroupLayouts: [this.computeDataLayout, this.fragmentImageLayout, this.frameDataLayout],
-            label: "Browzium Engine Pipeline Layout",
-        })
-
-        this.computePipeline = this.device.createComputePipeline({
-            layout: pipelineLayout,
-            label: "Browzium Engine Compute Pipeline",
-            compute: {
-                module: computeShader,
-                entryPoint: "computeMain",
-            },
-        });
-
-        this.renderPipeline = this.device.createRenderPipeline({
-            layout: fragmentPipelineLayout,
-            label: "Browzium Engine Render Pipeline",
-            vertex: {
-                module: vertexShader,
-                entryPoint: 'vertexMain',
-            },
-            fragment: {
-                module: fragmentShader,
-                entryPoint: 'fragmentMain',
-                targets: [
-                    {
-                        format: this.presentationFormat,
-                    },
-                ],
-            },
-            primitive: {
-                topology: 'triangle-list',
-            }
-        })
-    }
-
-    #computeAtlasFormat(triangles) { // actually implement this xd
+    #computeAtlasFormat() {
         let maxSize = 4096;
         //let maxSize = this.device.limits.maxTextureDimension2D
         let maxDepth = this.device.limits.maxTextureArrayLayers
@@ -645,8 +150,6 @@ class RenderingManager {
                 material,
             })
         }
-
-        console.log(textures);
 
         this.texturesContained = textures
     }
@@ -799,131 +302,8 @@ class RenderingManager {
         }
     }
 
-    async generateImage() {
-
-        // Run the compute shader
-
-        const commandEncoder = this.device.createCommandEncoder();
-
-        const passEncoder = commandEncoder.beginComputePass();
-
-        passEncoder.setPipeline(this.computePipeline);
-
-        passEncoder.setBindGroup(0, this.computeDataBindGroup);
-        passEncoder.setBindGroup(1, this.computeMapBindGroup);
-        passEncoder.setBindGroup(2, this.computeImageBindGroup);
-        passEncoder.setBindGroup(3, this.renderHistoryDataBindGroup);
-
-        passEncoder.dispatchWorkgroups(Math.ceil(this.canvas.width / 16), Math.ceil(this.canvas.height / 16), 1); //  Z for SPP
-        passEncoder.end();
-
-        this.device.queue.submit([commandEncoder.finish()]);
-        await this.device.queue.onSubmittedWorkDone()
-    }
-
-    async readImage() {
-        const copyCommandEncoder = this.device.createCommandEncoder();
-        copyCommandEncoder.copyBufferToBuffer(this.renderTextureColor, 0, this.renderReadTexture, 0, this.renderReadTexture.size);
-        this.device.queue.submit([copyCommandEncoder.finish()]);
-        await this.device.queue.onSubmittedWorkDone();
-
-        await this.renderReadTexture.mapAsync(GPUMapMode.READ);
-
-        const arrayBuffer = this.renderReadTexture.getMappedRange();
-        const data = new Float32Array(new Float32Array(arrayBuffer));
-
-        this.renderReadTexture.unmap();
-
-        return data
-    }
-
-    async renderImage() {
-        // Copy the history buffer
-
-        const copyEncoder = this.device.createCommandEncoder();
-
-        copyEncoder.copyTextureToTexture(
-            {
-                texture: this.renderTextureHistory,
-            },
-            {
-                texture: this.renderTextureHistoryRead,
-            },
-            {
-                width: this.canvas.width,
-                height: this.canvas.height,
-                depthOrArrayLayers: 1,
-            },
-        );
-
-        this.device.queue.submit([copyEncoder.finish()]);
-
-        // Write image to screen
-
-        const commandEncoder = this.device.createCommandEncoder();
-        const currentTexture = this.context.getCurrentTexture();
-
-        const passEncoder = commandEncoder.beginRenderPass({
-            colorAttachments: [{
-                view: currentTexture.createView(),
-                loadValue: { r: 0.0, g: 0, b: 0.0, a: 1.0 },
-                loadOp: "clear",
-                storeOp: 'store',
-            }],
-            label: "Browzium render pass"
-        });
-
-        passEncoder.setPipeline(this.renderPipeline);
-
-        passEncoder.setBindGroup(0, this.computeDataBindGroup);
-        passEncoder.setBindGroup(1, this.fragmentBindGroup);
-        passEncoder.setBindGroup(2, this.renderHistoryDataBindGroup);
-
-        passEncoder.draw(6, 2, 0, 0);
-        passEncoder.end();
-
-        this.device.queue.submit([commandEncoder.finish()]);
-    }
-
-    UpdateData() {
-        let computeGlobalData = new Float32Array([
-            this.canvas.width,
-            this.canvas.height,
-
-            this.Camera.FieldOfView,
-            //this.rpp,
-            //this.bounces,
-            this.focalLength,
-
-            this.Camera.Position.x,
-            this.Camera.Position.y,
-            this.Camera.Position.z,
-            this.apertureSize,
-
-            ...this.Camera.CameraToWorldMatrix.getContents(),
-
-            this.tonemapMode,
-            this.gammaCorrect,
-            //0,
-            //0
-        ])
-
-        this.Camera.wasCameraUpdated = false;
-        this.UpdateDataBuffer = false;
-        this.device.queue.writeBuffer(this.computeGlobalData, 0, computeGlobalData, 0, computeGlobalData.length);
-    }
-
-    UpdateRenderData() {
-        let renderData = new Float32Array([
-            this.staticFrames,
-            this.frame
-        ])
-
-        this.device.queue.writeBuffer(this.renderHistoryData, 0, renderData, 0, renderData.length);
-    }
-
     SetMaterials(materialList, updateBuffer) {
-        this.materials = deepCopy(materialList);
+        this.materials = materialList;
 
         let oldSize = (this.computeMaterialData || { size: 0 }).size / 4
         let newSize = getNext2Power(Object.keys(this.materials).length) * materialStride
@@ -941,7 +321,7 @@ class RenderingManager {
             });
 
             if (updateBuffer) {
-                this.#makeBindGroups()
+                this.renderer.internal__makeBindGroups()
             }
         }
 
@@ -979,96 +359,7 @@ class RenderingManager {
             materialData[locationStart + 15] = material.roughtness;
         }
 
-        console.log("Material data: ", this.materials, materialData)
-
         this.device.queue.writeBuffer(this.computeMaterialData, 0, materialData, 0, materialData.length);
-    }
-
-    CreateOctree(triangleArray) {
-        if (triangleArray.length == 0) {
-            return [new BVHTree(new Vector3(0, 0, 0), new Vector3(0, 0, 0), [])];
-        }
-
-        /*let octree = new Octree()
-        let branches = []*/
-
-        let octreeSize = BVHTree.calculateTreeSize(triangleArray)
-        let octree = new BVHTree(octreeSize.minPosition, octreeSize.maxPosition, triangleArray, triangleArray)
-
-        let branches = []
-        function getBranches(leaf) {
-            branches.push(leaf)
-
-            if (leaf.child1) {
-                let len = branches.length
-                getBranches(leaf.child1)
-                leaf.child1 = len;
-            }
-
-            if (leaf.child2) {
-                let len = branches.length
-                getBranches(leaf.child2)
-                leaf.child2 = len;
-            }
-        }
-
-        getBranches(octree)
-
-        return branches
-    }
-
-    #SetOctree(triangleArray, updateBuffer) {
-        let octree = this.CreateOctree(triangleArray)
-
-        let oldSize = (this.computeOctreeTreeData || { size: 0 }).size / 4
-        let newSize = getNext2Power(octree.length) * octreeBranchStride
-
-        let octreeData = new Float32Array(newSize);
-
-        if (newSize > oldSize) {
-            this.computeOctreeTreeData = this.device.createBuffer({
-                size: octreeData.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            });
-
-            if (updateBuffer) {
-                this.#makeBindGroups()
-            }
-        }
-
-        for (let branchIndex = 0; branchIndex < octree.length; branchIndex++) {
-            let octreeBranch = octree[branchIndex]
-            let locationStart = octreeBranchStride * branchIndex;
-
-            // minPosition
-
-            octreeData[locationStart + 0] = octreeBranch.minPosition.x;
-            octreeData[locationStart + 1] = octreeBranch.minPosition.y;
-            octreeData[locationStart + 2] = octreeBranch.minPosition.z;
-            octreeData[locationStart + 3] = 0;
-
-            // maxPosition
-
-            octreeData[locationStart + 4] = octreeBranch.maxPosition.x;
-            octreeData[locationStart + 5] = octreeBranch.maxPosition.x;
-            octreeData[locationStart + 6] = octreeBranch.maxPosition.x;
-            octreeData[locationStart + 7] = 0;
-
-            // Children
-
-            octreeData[locationStart + 8] = isNaN(octreeBranch.child1) ? -1 : octreeBranch.child1;
-            octreeData[locationStart + 9] = isNaN(octreeBranch.child2) ? -1 : octreeBranch.child2;
-            octreeData[locationStart + 10] = 0;
-            octreeData[locationStart + 11] = 0;
-
-            // Triangles
-
-            for (let i = 0; i < 8; i++) {
-                octreeData[locationStart + 12 + i] = isNaN(octreeBranch.objects[i]) ? -1 : octreeBranch.objects[i];
-            }
-        }
-
-        this.device.queue.writeBuffer(this.computeOctreeTreeData, 0, octreeData, 0, octreeData.length);
     }
 
     #SetLights(triangleArray) {
@@ -1101,8 +392,8 @@ class RenderingManager {
         this.device.queue.writeBuffer(this.computeLightData, 0, triangleData, 0, triangleData.length);
     }
 
-    SetTriangles(triangleArray, updateOctree, updateTextures, updateBuffer) {
-        triangleArray = triangleArray.map(deepCopy)
+    SetTriangles(triangleArray, updateTextures, updateBuffer, updateMaterials) {
+        this.triangles = triangleArray;
         this.#SetLights(triangleArray);
 
         if (updateTextures) {
@@ -1110,11 +401,14 @@ class RenderingManager {
             this.#makeTextureAtlas()
             this.#applyTextureAtlas()
 
-            this.SetMaterials(this.materials, true)
+            if(updateMaterials){
+                this.SetMaterials(this.materials, true)
+            }
         }
 
 
         let startIndex = 4;
+        let updateBufferDown = false;
 
         let oldSize = (this.computeMapData || { size: 0 }).size / 4
         let newSize = getNext2Power(triangleArray.length) * triangleStride + startIndex
@@ -1134,7 +428,7 @@ class RenderingManager {
             });
 
             if (updateBuffer) {
-                this.#makeBindGroups()
+                updateBufferDown = true;
             }
         }
 
@@ -1197,8 +491,10 @@ class RenderingManager {
 
         this.device.queue.writeBuffer(this.computeMapData, 0, triangleData, 0, triangleData.length);
 
-        if (updateOctree) {
-            this.#SetOctree(triangleArray, true)
+        if(updateMaterials) this.renderer.SetTriangles(triangleArray, triangleData, updateBuffer)
+
+        if (updateBufferDown) {
+            this.renderer.internal__makeBindGroups()
         }
     }
 
@@ -1209,44 +505,33 @@ class RenderingManager {
         if (this.canvas.width !== this.#lastCanvasSize.width || this.canvas.height !== this.#lastCanvasSize.height) {
             this.#lastCanvasSize = { width: this.canvas.width, height: this.canvas.height }
 
-
-            for (const denoiserName in this.denoisersBuilt) {
-                if (this.denoisersBuilt.hasOwnProperty(denoiserName)) {
-                    this.denoisersBuilt[denoiserName].makeBindGroups()
-                }
-            }
-
-            this.#makeBindGroups()
-            this.UpdateDataBuffer = true;
+            this.renderer.ResolutionChange()
         }
 
         if (this.Camera.wasCameraUpdated) {
             this.staticFrames = 0;
         }
 
-        if (this.Camera.wasCameraUpdated || this.UpdateDataBuffer) {
-            this.UpdateData();
+        return await this.renderer.RenderFrame(readImage);
+    }
+
+    async SetRenderer(rendererType){
+        if(!(rendererType == "raster" || rendererType == "path_traced")){
+            throw new Error(`Render type ${rendererType} doesn't exist. Chose "raster" or "path_traced".`)
         }
 
-        this.UpdateRenderData()
+        this.rendererType = rendererType
 
-        await this.generateImage();
-
-        // denoise
-
-        if (!this.denoisersBuilt[this.denoiser]) {
-            throw new Error(`${this.denoiser} is not a available denoiser.`)
+        switch(rendererType){
+            case "path_traced": 
+                this.renderer = new PathTracedRenderer(this);
+                break;
+            case "raster":
+                this.renderer = new  RasterRenderer(this)
+                break;
         }
 
-        await this.denoisersBuilt[this.denoiser].denoise()
-
-        // render
-
-        await this.renderImage();
-
-        if (readImage) {
-            return { image: this.readImage() }
-        }
+        await this.renderer.Init()
     }
 
     async Init() {
@@ -1270,7 +555,7 @@ class RenderingManager {
             }
         });
 
-        this.presentationFormat = await navigator.gpu.getPreferredCanvasFormat();
+        this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
         await this.context.configure({
             device: this.device,
@@ -1287,50 +572,12 @@ class RenderingManager {
 
         this.makeWorldTexture(new Vector2(1, 1))
 
-        this.#SetOctree([], false);
-        this.SetMaterials([], false);
-        this.SetTriangles([], false, true, false);
-        this.#makePipelines();
-        this.#makeBindGroups();
+        this.SetTriangles([], true, false, false)
+        this.SetMaterials([], false)
 
-        this.loadDenoiser("none")
-
-        //this.UpdateData();
-
-        //await this.#Denoiser.Init()
+        //await this.SetRenderer("raster");
+        await this.SetRenderer("path_traced");
     }
 }
 
 export default RenderingManager
-
-function deepCopy(obj) {
-    return obj;
-
-    /*if (obj === null || typeof obj !== 'object') {
-        return obj;
-    }
-
-    if (obj instanceof Date) {
-        return new Date(obj.getTime());
-    }
-
-    if (obj instanceof Array) {
-        return obj.map(deepCopy);
-    }
-
-    if (obj instanceof Uint8ClampedArray) {
-        return new Uint8ClampedArray(obj);
-    }
-
-    if (obj instanceof Object) {
-        const copiedObject = {};
-        for (const key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                copiedObject[key] = deepCopy(obj[key]);
-            }
-        }
-        return copiedObject;
-    }*/
-
-    //return structuredClone(obj)
-}
